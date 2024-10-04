@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "organizeImports": { "enabled": true },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "nursery": {
+        "useSortedClasses": {
+          "level": "warn",
+          "fix": "safe",
+          "options": {
+            "attributes": ["classList", "tw"],
+            "functions": ["tw", "cn", "tv"]
+          }
+        }
+      }
+    },
+    "ignore": ["node_modules", "dist", ".vercel", ".vscode"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "ignore": ["node_modules", "dist", ".vercel", ".vscode"]
+  }
+}
