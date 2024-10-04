@@ -1,0 +1,31 @@
+{
+  "name": "l_ecole",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check --fix --unsafe --no-errors-on-unmatched --files-ignore-unknown=true ."
+  },
+  "dependencies": {
+    "next": "14.2.14",
+    "react": "^18",
+    "react-dom": "^18",
+    "tailwind-variants": "^0.2.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.3",
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.20",
+    "lefthook": "^1.7.18",
+    "postcss": "^8",
+    "postcss-import": "^16.1.0",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5"
+  }
+}
