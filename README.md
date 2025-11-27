@@ -7,4 +7,4 @@ A more complete description of the features of Lox can be found [here][the-lox-l
 [crafting-interpreters]: https://craftinginterpreters.com/
 [the-lox-language]: https://craftinginterpreters.com/the-lox-language.html
 
-## Lox Setup
+## Setup
