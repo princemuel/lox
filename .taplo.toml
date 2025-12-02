@@ -1,0 +1,12 @@
+exclude = ["node_modules/**/*.toml"]
+
+[schema]
+path = "taplo://taplo.toml"
+
+# https://taplo.tamasfe.dev/configuration/formatter-options.html
+[formatting]
+align_entries       = true
+allowed_blank_lines = 1
+indent_entries      = false
+indent_tables       = false
+reorder_keys        = true
