@@ -10,16 +10,14 @@ insert_final_newline = true
 end_of_line = lf
 indent_style = space
 indent_size = 2
-max_line_length = 112
+max_line_length = 108
 trim_trailing_whitespace = true
 
 [{*.db,*.sql,*.sqlite}]
 indent_size = 4
-max_line_length = 108
 
 [*.prisma]
 indent_size = 2
-max_line_length = 108
 
 [{*.scm,*.ss,*.rkt}]
 indent_size = unset
@@ -67,5 +65,4 @@ indent_size = 4
 
 [{*.md,*.mdx,*.mdoc}]
 indent_size = 2
-max_line_length = 108
 trim_trailing_whitespace = false

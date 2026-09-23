@@ -1,5 +1,5 @@
 [package]
-name    = "rox"
+name    = "loxxi"
 version = "0.1.0"
 edition = "2024"
 
@@ -20,6 +20,7 @@ arithmetic_side_effects        = "allow"
 expect_used                    = "allow"
 implicit_return                = "allow"  # not needed
 let_underscore_untyped         = "allow"
+min_ident_chars                = "allow"
 missing_docs_in_private_items  = "allow"  # uncomment if it gets annoying
 missing_errors_doc             = "allow"
 missing_inline_in_public_items = "allow"
@@ -28,8 +29,11 @@ missing_trait_methods          = "allow"
 # module_name_repetitions    = "allow"  # uncomment if it gets annoying
 panic                          = "allow"  # uncomment if you use panic! intentionally
 pattern_type_mismatch          = "allow"
+pub_use                        = "allow"
 pub_with_shorthand             = "allow"  # redundant
 question_mark_used             = "allow"
+shadow_reuse                   = "allow"
+shadow_unrelated               = "allow"
 single_call_fn                 = "allow"
 std_instead_of_alloc           = "allow"  # uncomment if you add alloc later
 unseparated_literal_suffix     = "allow"
