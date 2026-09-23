@@ -76,7 +76,39 @@ impl<'de> Iterator for Lexer<'de> {
 
             break match started {
                 Started::String => todo!(),
-                Started::Ident => todo!(),
+                Started::Ident => {
+                    let first_non_digit = ch_onwards
+                        .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
+                        .unwrap_or(ch_onwards.len());
+
+                    let mut literal = &ch_onwards[..first_non_digit];
+                    let extra_bytes = literal.len() - ch.len_utf8();
+
+                    self.cursor += extra_bytes;
+                    self.rest = &self.rest[extra_bytes..];
+
+                    let kind = match literal {
+                        "and" => TokenKind::And,
+                        "class" => TokenKind::Class,
+                        "else" => TokenKind::Else,
+                        "false" => TokenKind::False,
+                        "for" => TokenKind::For,
+                        "fun" => TokenKind::Fun,
+                        "if" => TokenKind::If,
+                        "nil" => TokenKind::Nil,
+                        "or" => TokenKind::Or,
+                        "print" => TokenKind::Print,
+                        "return" => TokenKind::Return,
+                        "super" => TokenKind::Super,
+                        "this" => TokenKind::This,
+                        "true" => TokenKind::True,
+                        "var" => TokenKind::Var,
+                        "while" => TokenKind::While,
+                        _ => TokenKind::Ident,
+                    };
+
+                    return Some(Ok(Token { origin: literal, kind }));
+                }
                 Started::Slash => todo!(),
                 Started::Number => {
                     let first_non_digit = ch_onwards
