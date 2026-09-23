@@ -1,24 +1,91 @@
 [package]
-authors = ["Prince Muel <68931805+princemuel@users.noreply.github.com>"]
-edition = "2024"
-name    = "lox"
+name    = "rox"
 version = "0.1.0"
+edition = "2024"
 
 [dependencies]
+bytes     = "1"
+clap      = { version = "4", features = ["derive"] }
+miette    = { version = "7", features = ["fancy"] }
+thiserror = "2"
 
-[profile.dev]
-debug     = true
-opt-level = 0
+[lints.clippy]
+all         = { level = "warn", priority = -1 }
+pedantic    = { level = "warn", priority = -1 }
+restriction = { level = "warn", priority = -1 }
 
-[profile.release]
-codegen-units = 1
-lto           = "thin"
-opt-level     = 3
-panic         = "abort"
-strip         = true
+# --- Allowed (too noisy / not applicable) ---
+arbitrary_source_item_ordering = "allow"
+arithmetic_side_effects        = "allow"
+expect_used                    = "allow"
+implicit_return                = "allow"  # not needed
+let_underscore_untyped         = "allow"
+missing_docs_in_private_items  = "allow"  # uncomment if it gets annoying
+missing_errors_doc             = "allow"
+missing_inline_in_public_items = "allow"
+missing_panics_doc             = "allow"
+missing_trait_methods          = "allow"
+# module_name_repetitions    = "allow"  # uncomment if it gets annoying
+panic                          = "allow"  # uncomment if you use panic! intentionally
+pattern_type_mismatch          = "allow"
+pub_with_shorthand             = "allow"  # redundant
+question_mark_used             = "allow"
+single_call_fn                 = "allow"
+std_instead_of_alloc           = "allow"  # uncomment if you add alloc later
+unseparated_literal_suffix     = "allow"
+
+# --------------------------------------
+default_union_representation   = "deny"
+empty_drop                     = "deny"
+missing_asserts_for_indexing   = "deny"
+mixed_read_write_in_expression = "deny"
+panic_in_result_fn             = "deny"
+
+[lints.rust]
+# --- Lint groups ---
+future_incompatible                        = { level = "warn", priority = -1 }
+nonstandard_style                          = { level = "warn", priority = -1 }
+rust_2018_idioms                           = { level = "warn", priority = -1 }
+unknown_or_malformed_diagnostic_attributes = { level = "warn", priority = -1 }
+unused                                     = { level = "warn", priority = -1 }
+
+ambiguous_negative_literals   = "warn"
+closure_returning_async_block = "warn"
+deref_into_dyn_supertrait     = "warn"
+ffi_unwind_calls              = "deny"  # C function unwinds into Rust = instant UB
+impl_trait_redundant_captures = "warn"
+keyword_idents_2018           = "warn"
+keyword_idents_2024           = "deny"
+let_underscore_drop           = "warn"
+macro_use_extern_crate        = "deny"
+meta_variable_misuse          = "deny"
+missing_copy_implementations  = "warn"
+non_ascii_idents              = "deny"
+# missing_docs              = "warn"   # enable once public API stabilises
+redundant_imports             = "deny"
+redundant_lifetimes           = "deny"
+single_use_lifetimes          = "deny"
+trivial_casts                 = "deny"
+trivial_numeric_casts         = "deny"
+unit_bindings                 = "deny"
+unnameable_types              = "warn"
+unreachable_pub               = "warn"
+unsafe_op_in_unsafe_fn        = "deny"
+# unsafe_code               = "warn"   # enable/disable per project
+# unused_crate_dependencies = "warn"   # enable per crate, noisy with dev_dependencies
+unused_import_braces          = "deny"
+unused_lifetimes              = "warn"
+unused_qualifications         = "deny"
+unused_results                = "warn"
 
 [profile.bench]
-codegen-units = 1
+opt-level     = 3
 debug         = false
 lto           = true
+codegen-units = 1
+
+[profile.release]
 opt-level     = 3
+strip         = "symbols"
+lto           = "fat"
+codegen-units = 1
