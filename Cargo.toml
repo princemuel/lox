@@ -3,11 +3,22 @@ name    = "loxxi"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "rlox"
+path = "src/main.rs"
+
+[[test]]
+harness = false
+name    = "lox_suite"
+
 [dependencies]
 bytes     = "1"
 clap      = { version = "4", features = ["derive"] }
 miette    = { version = "7", features = ["fancy"] }
 thiserror = "2"
+
+[dev-dependencies]
+libtest-mimic = "0.8"
 
 [lints.clippy]
 all         = { level = "warn", priority = -1 }
@@ -15,28 +26,29 @@ pedantic    = { level = "warn", priority = -1 }
 restriction = { level = "warn", priority = -1 }
 
 # --- Allowed (too noisy / not applicable) ---
-arbitrary_source_item_ordering = "allow"
-arithmetic_side_effects        = "allow"
-expect_used                    = "allow"
-implicit_return                = "allow"  # not needed
-let_underscore_untyped         = "allow"
-min_ident_chars                = "allow"
-missing_docs_in_private_items  = "allow"  # uncomment if it gets annoying
-missing_errors_doc             = "allow"
-missing_inline_in_public_items = "allow"
-missing_panics_doc             = "allow"
-missing_trait_methods          = "allow"
+arbitrary_source_item_ordering     = "allow"
+arithmetic_side_effects            = "allow"
+doc_paragraphs_missing_punctuation = "allow"
+expect_used                        = "allow"
+implicit_return                    = "allow"  # not needed
+let_underscore_untyped             = "allow"
+min_ident_chars                    = "allow"
+missing_docs_in_private_items      = "allow"  # uncomment if it gets annoying
+missing_errors_doc                 = "allow"
+missing_inline_in_public_items     = "allow"
+missing_panics_doc                 = "allow"
+missing_trait_methods              = "allow"
 # module_name_repetitions    = "allow"  # uncomment if it gets annoying
-panic                          = "allow"  # uncomment if you use panic! intentionally
-pattern_type_mismatch          = "allow"
-pub_use                        = "allow"
-pub_with_shorthand             = "allow"  # redundant
-question_mark_used             = "allow"
-shadow_reuse                   = "allow"
-shadow_unrelated               = "allow"
-single_call_fn                 = "allow"
-std_instead_of_alloc           = "allow"  # uncomment if you add alloc later
-unseparated_literal_suffix     = "allow"
+panic                              = "allow"  # uncomment if you use panic! intentionally
+pattern_type_mismatch              = "allow"
+pub_use                            = "allow"
+pub_with_shorthand                 = "allow"  # redundant
+question_mark_used                 = "allow"
+shadow_reuse                       = "allow"
+shadow_unrelated                   = "allow"
+single_call_fn                     = "allow"
+std_instead_of_alloc               = "allow"  # uncomment if you add alloc later
+unseparated_literal_suffix         = "allow"
 
 # --------------------------------------
 default_union_representation   = "deny"
@@ -89,7 +101,7 @@ lto           = true
 codegen-units = 1
 
 [profile.release]
-opt-level     = 3
-strip         = "symbols"
-lto           = "fat"
+opt-level     = "s"
+strip         = true
+lto           = true
 codegen-units = 1

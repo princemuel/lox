@@ -1,7 +1,8 @@
 use core::iter::FusedIterator;
 
-use miette::{Diagnostic, Error, LabeledSpan, SourceSpan, miette};
+use miette::{Diagnostic as _, Error, LabeledSpan, SourceSpan, miette};
 
+use crate::error::SingleTokenError;
 use crate::token::{Token, TokenKind};
 pub struct Lexer<'de> {
     rest: &'de str,
@@ -31,7 +32,7 @@ impl<'de> Iterator for Lexer<'de> {
             let mut chars = self.rest.chars();
 
             let ch = chars.next()?;
-            let ch_at = self.cursor;
+            let _ch_at = self.cursor;
             let ch_str = &self.rest[..ch.len_utf8()];
             let ch_onwards = self.rest;
 
@@ -63,14 +64,12 @@ impl<'de> Iterator for Lexer<'de> {
 
                 c if c.is_whitespace() => continue,
                 c => {
-                    return Some(Err(miette!(
-                        labels = vec![LabeledSpan::at(
-                            self.cursor - c.len_utf8()..self.cursor,
-                            "this character"
-                        )],
-                        "unexpected token '{c}' in input"
-                    )
-                    .with_source_code(self.source.to_owned())));
+                    return Some(Err(SingleTokenError {
+                        src: self.source.to_owned(),
+                        token: c,
+                        err_span: SourceSpan::from(self.cursor - c.len_utf8()..self.cursor),
+                    }
+                    .into()));
                 }
             };
 
@@ -81,7 +80,7 @@ impl<'de> Iterator for Lexer<'de> {
                         .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
                         .unwrap_or(ch_onwards.len());
 
-                    let mut literal = &ch_onwards[..first_non_digit];
+                    let literal = &ch_onwards[..first_non_digit];
                     let extra_bytes = literal.len() - ch.len_utf8();
 
                     self.cursor += extra_bytes;
@@ -109,7 +108,6 @@ impl<'de> Iterator for Lexer<'de> {
 
                     return Some(Ok(Token { origin: literal, kind }));
                 }
-                Started::Slash => todo!(),
                 Started::Number => {
                     let first_non_digit = ch_onwards
                         .find(|ch| !matches!(ch, '.' | '0'..='9'))
@@ -148,6 +146,7 @@ impl<'de> Iterator for Lexer<'de> {
                     return Some(Ok(Token { origin: literal, kind: TokenKind::Number(num) }));
                 }
 
+                Started::Slash => todo!(),
                 Started::IfEqualElse(yes, no) => {
                     self.rest = self.rest.trim_start();
 

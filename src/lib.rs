@@ -1,6 +1,7 @@
 extern crate alloc;
 
+pub mod error;
 pub mod lex;
-pub use lex::Lexer;
 pub mod parse;
+pub mod prelude;
 mod token;
