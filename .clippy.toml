@@ -9,6 +9,7 @@ allow-expect-in-tests                 = true
 allow-panic-in-tests                  = true
 allow-print-in-tests                  = true
 allow-unwrap-in-tests                 = true
+allow-unwrap-types                    = ["std::sync::LockResult"]
 allow-indexing-slicing-in-tests       = true
 module-items-ordered-within-groupings = "all"
 single-char-binding-names-threshold   = 12

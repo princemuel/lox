@@ -27,7 +27,7 @@
           "extraArgs": ["-Zjson-target-spec", "-Zunstable-options"],
           "extraEnv": { "RUSTFLAGS": "-Zunstable-options", "CARGO_LOG": "info" },
           "features": [],
-          "targetDir": true,
+          // "targetDir": true,
         },
         "check": { "command": "clippy" },
         "checkOnSave": true,

@@ -96,8 +96,7 @@ rust_2018_idioms                           = { level = "warn", priority = -1 }
 unknown_or_malformed_diagnostic_attributes = { level = "warn", priority = -1 }
 unused                                     = { level = "warn", priority = -1 }
 
-ambiguous_negative_literals = "warn"
-
+ambiguous_negative_literals   = "warn"
 closure_returning_async_block = "warn"
 deref_into_dyn_supertrait     = "warn"
 ffi_unwind_calls              = "deny"  # C function unwinds into Rust = instant UB
@@ -149,7 +148,8 @@ codegen-units = 1
 
 # The profile that 'dist' will build with
 [profile.dist]
-inherits  = "release"
-opt-level = "s"
-strip     = true
-lto       = "thin"
+inherits      = "release"
+opt-level     = "s"
+strip         = true
+lto           = "thin"
+codegen-units = 16
