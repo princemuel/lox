@@ -1,8 +1,6 @@
 use core::iter::FusedIterator;
 
-use miette::{Diagnostic as _, Error, LabeledSpan, SourceSpan, miette};
-
-use crate::error::SingleTokenError;
+use crate::error::{LexError, ParseNumberError, SingleTokenError};
 use crate::token::{Token, TokenKind};
 pub struct Lexer<'de> {
     rest: &'de str,
@@ -24,7 +22,7 @@ enum Started {
 }
 
 impl<'de> Iterator for Lexer<'de> {
-    type Item = Result<Token<'de>, Error>;
+    type Item = Result<Token<'de>, LexError>;
 
     /// once the iterator returns `Error`, it will only return `None`
     fn next(&mut self) -> Option<Self::Item> {
@@ -64,11 +62,11 @@ impl<'de> Iterator for Lexer<'de> {
 
                 c if c.is_whitespace() => continue,
                 c => {
-                    return Some(Err(SingleTokenError {
-                        src: self.source.to_owned(),
-                        token: c,
-                        err_span: SourceSpan::from(self.cursor - c.len_utf8()..self.cursor),
-                    }
+                    return Some(Err(SingleTokenError::new(
+                        self.source.to_owned(),
+                        c,
+                        self.cursor - c.len_utf8(),
+                    )
                     .into()));
                 }
             };
@@ -133,13 +131,13 @@ impl<'de> Iterator for Lexer<'de> {
 
                     let num = match literal.parse() {
                         Ok(num) => num,
-                        Err(err) => {
-                            return Some(Err(miette::miette! {
-                                labels = vec![
-                                    LabeledSpan::at(self.cursor - literal.len()..self.cursor, "this numeric literal"),
-                                ],
-                                "{err}",
-                            }.with_source_code(self.source.to_owned())));
+                        Err(source) => {
+                            return Some(Err(ParseNumberError {
+                                literal: literal.to_owned(),
+                                span_start: self.cursor - literal.len(),
+                                source,
+                            }
+                            .into()));
                         }
                     };
 

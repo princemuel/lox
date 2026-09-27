@@ -13,49 +13,80 @@ name    = "lox_suite"
 
 [dependencies]
 bytes     = "1"
-clap      = { version = "4", features = ["derive"] }
-miette    = { version = "7", features = ["fancy"] }
+lexopt    = "0.3"
 thiserror = "2"
 
 [dev-dependencies]
 libtest-mimic = "0.8"
 
 [lints.clippy]
-all         = { level = "warn", priority = -1 }
-pedantic    = { level = "warn", priority = -1 }
-restriction = { level = "warn", priority = -1 }
+all      = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 
 # --- Allowed (too noisy / not applicable) ---
-arbitrary_source_item_ordering     = "allow"
-arithmetic_side_effects            = "allow"
-doc_paragraphs_missing_punctuation = "allow"
-expect_used                        = "allow"
-implicit_return                    = "allow"  # not needed
-let_underscore_untyped             = "allow"
-min_ident_chars                    = "allow"
-missing_docs_in_private_items      = "allow"  # uncomment if it gets annoying
-missing_errors_doc                 = "allow"
-missing_inline_in_public_items     = "allow"
-missing_panics_doc                 = "allow"
-missing_trait_methods              = "allow"
-# module_name_repetitions    = "allow"  # uncomment if it gets annoying
-panic                              = "allow"  # uncomment if you use panic! intentionally
-pattern_type_mismatch              = "allow"
-pub_use                            = "allow"
-pub_with_shorthand                 = "allow"  # redundant
-question_mark_used                 = "allow"
-shadow_reuse                       = "allow"
-shadow_unrelated                   = "allow"
-single_call_fn                     = "allow"
-std_instead_of_alloc               = "allow"  # uncomment if you add alloc later
-unseparated_literal_suffix         = "allow"
+alloc_instead_of_core             = "warn"
+allow_attributes                  = "warn"
+default_union_representation      = "deny"
+empty_drop                        = "deny"
+missing_asserts_for_indexing      = "deny"
+mixed_read_write_in_expression    = "deny"
+panic_in_result_fn                = "deny"
+string_lit_as_bytes               = "warn"
+string_lit_chars_any              = "warn"
+string_slice                      = "warn"  # it is easy to inadvertently confuse char counts and str indices.
+suspicious_xor_used_as_pow        = "deny"
+tests_outside_test_module         = "deny"
+trailing_empty_array              = "warn"
+trait_duplication_in_bounds       = "warn"
+try_err                           = "deny"
+tuple_array_conversions           = "warn"
+type_repetition_in_bounds         = "warn"
+undocumented_unsafe_blocks        = "warn"
+unimplemented                     = "deny"
+uninhabited_references            = "deny"
+unnecessary_safety_comment        = "deny"
+unnecessary_safety_doc            = "deny"
+unnecessary_struct_initialization = "warn"  # comment out if it generates false negatives
+unneeded_field_pattern            = "warn"
+unneeded_struct_pattern           = "warn"
+unused_peekable                   = "warn"
+unused_result_ok                  = "warn"
+unused_rounding                   = "warn"
+unused_trait_names                = "warn"
+unwrap_in_result                  = "deny"
+unwrap_used                       = "warn"
+use_debug                         = "warn"
+use_self                          = "warn"  # comment out if it generates false negatives
+useless_let_if_seq                = "deny"
+verbose_file_reads                = "warn"
+volatile_composites               = "warn"
+while_float                       = "warn"  # comment out if it generates false negatives
 
-# --------------------------------------
-default_union_representation   = "deny"
-empty_drop                     = "deny"
-missing_asserts_for_indexing   = "deny"
-mixed_read_write_in_expression = "deny"
-panic_in_result_fn             = "deny"
+# arbitrary_source_item_ordering     = "allow"
+# arithmetic_side_effects            = "allow"
+# doc_paragraphs_missing_punctuation = "allow"
+# exhaustive_structs                 = "allow"
+# expect_used                        = "allow"
+# implicit_return                    = "allow"  # not needed
+# let_underscore_untyped             = "allow"
+# min_ident_chars                    = "allow"
+# missing_docs_in_private_items      = "allow"  # uncomment if it gets annoying
+# missing_errors_doc                 = "allow"
+# missing_inline_in_public_items     = "allow"
+# missing_panics_doc                 = "allow"
+# missing_trait_methods              = "allow"
+# module_name_repetitions            = "allow"
+# # module_name_repetitions    = "allow"  # uncomment if it gets annoying
+# panic                              = "allow"  # uncomment if you use panic! intentionally
+# pattern_type_mismatch              = "allow"
+# pub_use                            = "allow"
+# pub_with_shorthand                 = "allow"  # redundant
+# question_mark_used                 = "allow"
+# shadow_reuse                       = "allow"
+# shadow_unrelated                   = "allow"
+# single_call_fn                     = "allow"
+# std_instead_of_alloc               = "allow"  # uncomment if you add alloc later
+# unseparated_literal_suffix         = "allow"
 
 [lints.rust]
 # --- Lint groups ---
@@ -65,7 +96,8 @@ rust_2018_idioms                           = { level = "warn", priority = -1 }
 unknown_or_malformed_diagnostic_attributes = { level = "warn", priority = -1 }
 unused                                     = { level = "warn", priority = -1 }
 
-ambiguous_negative_literals   = "warn"
+ambiguous_negative_literals = "warn"
+
 closure_returning_async_block = "warn"
 deref_into_dyn_supertrait     = "warn"
 ffi_unwind_calls              = "deny"  # C function unwinds into Rust = instant UB
@@ -75,7 +107,7 @@ keyword_idents_2024           = "deny"
 let_underscore_drop           = "warn"
 macro_use_extern_crate        = "deny"
 meta_variable_misuse          = "deny"
-missing_copy_implementations  = "warn"
+missing_copy_implementations  = "allow"
 non_ascii_idents              = "deny"
 # missing_docs              = "warn"   # enable once public API stabilises
 redundant_imports             = "deny"
@@ -100,8 +132,24 @@ debug         = false
 lto           = true
 codegen-units = 1
 
+[profile.dev]
+opt-level = 1
+debug     = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 3
+debug     = "line-tables-only"
+
 [profile.release]
-opt-level     = "s"
+opt-level     = 3
 strip         = true
 lto           = true
+panic         = "abort"
 codegen-units = 1
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits  = "release"
+opt-level = "s"
+strip     = true
+lto       = "thin"

@@ -1,56 +1,70 @@
 #![allow(clippy::print_stdout, reason = "this project uses logs")]
 #![allow(clippy::print_stderr, reason = "this project uses logs")]
 #![allow(clippy::use_debug, reason = "this project uses logs")]
+#![feature(core_io)]
 
-use std::path::PathBuf;
+use core::io::Write as _;
+use std::path::{Path, PathBuf};
+use std::{fs, io, process};
 
 use clap::{Parser, Subcommand};
+use loxxi::error::LexError;
 use loxxi::prelude::*;
-use miette::{Context as _, IntoDiagnostic as _};
 
-fn main() -> miette::Result<()> {
+fn main() -> process::ExitCode {
     let args = Args::parse();
 
     match args.command {
-        Commands::Tokenize { filename } => {
-            let mut is_cc_err = false;
+        Commands::Tokenize { filename } => tokenize(&filename),
+    }
+}
 
-            let source = std::fs::read_to_string(&filename)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("reading '{}' failed", filename.display()))?;
+fn tokenize(filename: &Path) -> process::ExitCode {
+    let source = match fs::read_to_string(filename) {
+        Ok(source) => source,
+        Err(err) => {
+            eprintln!("Error: reading '{}' failed: {err}", filename.display());
+            return process::ExitCode::from(66); // EX_NOINPUT
+        }
+    };
 
-            for token in Lexer::new(&source) {
-                let token = match token {
-                    Ok(t) => t,
-                    Err(e) => {
-                        eprintln!("{e:?}");
-                        if let Some(ex) = e.downcast_ref::<SingleTokenError>() {
-                            is_cc_err = true;
-                            eprintln!(
-                                "[line {}] Error: Unexpected character: {}",
-                                ex.line(),
-                                ex.token
-                            );
-                        } else if let Some(ex) = e.downcast_ref::<StringTerminationError>() {
-                            is_cc_err = true;
-                            eprintln!("[line {}] Error: Unterminated string.", ex.line());
-                        }
-                        continue;
-                    }
-                };
+    let stdout = io::stdout();
+    let mut out = io::BufWriter::new(stdout.lock());
+    let mut had_error = false;
 
-                println!("{token}");
+    for token in Lexer::new(&source) {
+        match token {
+            Ok(token) => {
+                // Buffered write; ignore broken-pipe style errors here is fine
+                // for a CLI.
+                let _ = writeln!(out, "{token}");
             }
-
-            println!("EOF  null");
-
-            if is_cc_err {
-                std::process::exit(65);
+            Err(err) => {
+                had_error = true;
+                report_lex_error(&err);
             }
         }
     }
 
-    Ok(())
+    let _ = writeln!(out, "EOF  null");
+    let _ = out.flush();
+
+    if had_error { process::ExitCode::from(65) } else { process::ExitCode::SUCCESS }
+}
+
+fn report_lex_error(err: &LexError) {
+    match err {
+        LexError::SingleToken(e) => {
+            eprintln!("[line {}] Error: Unexpected character: {}", e.line(), e.token);
+        }
+        LexError::StringTermination(e) => {
+            eprintln!("[line {}] Error: Unterminated string.", e.line());
+        }
+        LexError::ParseNumber(e) => {
+            eprintln!("Error: invalid number literal '{}': {}", e.literal, e.source);
+        }
+        _ => todo!(),
+    }
 }
 
 #[derive(Debug, Parser)]
