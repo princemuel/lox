@@ -5,6 +5,7 @@ use core::fmt;
 pub struct Token<'de> {
     pub kind: TokenKind,
     pub origin: &'de str,
+    pub offset: usize,
 }
 
 #[non_exhaustive]
@@ -33,20 +34,20 @@ pub enum TokenKind {
     Ident,
     Number(f64),
     And,
-    Class,
-    Else,
-    False,
-    For,
-    Fun,
-    If,
-    Nil,
     Or,
+    If,
+    Else,
+    True,
+    False,
+    Fun,
+    Class,
+    Nil,
     Print,
     Return,
-    Super,
     This,
-    True,
+    Super,
     Var,
+    For,
     While,
 }
 

@@ -1,16 +1,60 @@
 use core::iter::FusedIterator;
 
-use crate::error::{LexError, ParseNumberError, SingleTokenError};
+use crate::error::{
+    Eof,
+    Error,
+    ParseNumberError,
+    SingleTokenError,
+    StringTerminationError,
+    UnexpectedTokenError,
+};
 use crate::token::{Token, TokenKind};
 pub struct Lexer<'de> {
     rest: &'de str,
     cursor: usize,
     source: &'de str,
+    peeked: Option<Result<Token<'de>, Error>>,
 }
 
 impl<'de> Lexer<'de> {
     #[must_use]
-    pub const fn new(input: &'de str) -> Self { Self { cursor: 0, source: input, rest: input } }
+    pub const fn new(input: &'de str) -> Self {
+        Self { cursor: 0, source: input, rest: input, peeked: None }
+    }
+
+    pub fn expect(&mut self, expected: TokenKind, message: &str) -> Result<Token<'de>, Error> {
+        self.expect_where(|next| next.kind == expected, message)
+    }
+
+    #[expect(clippy::missing_errors_doc)]
+    pub fn expect_where(
+        &mut self,
+        mut predicate: impl FnMut(&Token<'de>) -> bool,
+        message: &str,
+    ) -> Result<Token<'de>, Error> {
+        match self.next() {
+            Some(Ok(token)) if predicate(&token) => Ok(token),
+            Some(Ok(token)) => Err(UnexpectedTokenError {
+                src: self.source.to_owned(),
+                message: message.to_owned(),
+                found: format!("{token:?}"),
+                span_start: token.offset,
+                span_len: token.origin.len(),
+            }
+            .into()),
+            Some(Err(e)) => Err(e),
+            None => Err(Eof.into()),
+        }
+    }
+
+    pub fn peek(&mut self) -> Option<&Result<Token<'de>, Error>> {
+        if self.peeked.is_some() {
+            return self.peeked.as_ref();
+        }
+
+        self.peeked = self.next();
+        self.peeked.as_ref()
+    }
 }
 
 enum Started {
@@ -22,22 +66,27 @@ enum Started {
 }
 
 impl<'de> Iterator for Lexer<'de> {
-    type Item = Result<Token<'de>, LexError>;
+    type Item = Result<Token<'de>, Error>;
 
+    #[expect(clippy::too_many_lines)]
     /// once the iterator returns `Error`, it will only return `None`
     fn next(&mut self) -> Option<Self::Item> {
+        if let Some(next) = self.peeked.take() {
+            return Some(next);
+        }
+
         loop {
             let mut chars = self.rest.chars();
 
             let ch = chars.next()?;
-            let _ch_at = self.cursor;
+            let ch_at = self.cursor;
             let ch_str = &self.rest[..ch.len_utf8()];
             let ch_onwards = self.rest;
 
             self.rest = chars.as_str();
             self.cursor += ch.len_utf8();
 
-            let just = move |kind| Some(Ok(Token { kind, origin: ch_str }));
+            let just = move |kind| Some(Ok(Token { kind, offset: ch_at, origin: ch_str }));
 
             let started = match ch {
                 '(' => return just(TokenKind::LeftParen),
@@ -72,7 +121,37 @@ impl<'de> Iterator for Lexer<'de> {
             };
 
             break match started {
-                Started::String => todo!(),
+                Started::String => {
+                    if let Some(end) = self.rest.find('"') {
+                        let literal = &ch_onwards[..end + 1 + 1];
+                        self.cursor += end + 1;
+                        self.rest = &self.rest[end + 1..];
+                        Some(Ok(Token { origin: literal, offset: ch_at, kind: TokenKind::String }))
+                    } else {
+                        let err = StringTerminationError::new(
+                            self.source.to_owned(),
+                            self.cursor - ch.len_utf8(),
+                        );
+
+                        // swallow the remainder of input as being a string
+                        self.cursor += self.rest.len();
+                        self.rest = &self.rest[self.rest.len()..];
+
+                        return Some(Err(err.into()));
+                    }
+                }
+
+                Started::Slash => {
+                    if self.rest.starts_with('/') {
+                        let line_end = self.rest.find('\n').unwrap_or_else(|| self.rest.len());
+                        self.cursor += line_end;
+                        self.rest = &self.rest[line_end..];
+                        continue;
+                    }
+
+                    Some(Ok(Token { origin: ch_str, offset: ch_at, kind: TokenKind::Slash }))
+                }
+
                 Started::Ident => {
                     let first_non_digit = ch_onwards
                         .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
@@ -86,26 +165,27 @@ impl<'de> Iterator for Lexer<'de> {
 
                     let kind = match literal {
                         "and" => TokenKind::And,
-                        "class" => TokenKind::Class,
-                        "else" => TokenKind::Else,
-                        "false" => TokenKind::False,
-                        "for" => TokenKind::For,
-                        "fun" => TokenKind::Fun,
-                        "if" => TokenKind::If,
-                        "nil" => TokenKind::Nil,
                         "or" => TokenKind::Or,
-                        "print" => TokenKind::Print,
-                        "return" => TokenKind::Return,
-                        "super" => TokenKind::Super,
-                        "this" => TokenKind::This,
+                        "if" => TokenKind::If,
+                        "else" => TokenKind::Else,
                         "true" => TokenKind::True,
+                        "false" => TokenKind::False,
+                        "class" => TokenKind::Class,
+                        "fun" => TokenKind::Fun,
+                        "this" => TokenKind::This,
+                        "super" => TokenKind::Super,
                         "var" => TokenKind::Var,
+                        "nil" => TokenKind::Nil,
+                        "return" => TokenKind::Return,
+                        "print" => TokenKind::Print,
+                        "for" => TokenKind::For,
                         "while" => TokenKind::While,
                         _ => TokenKind::Ident,
                     };
 
-                    return Some(Ok(Token { origin: literal, kind }));
+                    return Some(Ok(Token { origin: literal, offset: ch_at, kind }));
                 }
+
                 Started::Number => {
                     let first_non_digit = ch_onwards
                         .find(|ch| !matches!(ch, '.' | '0'..='9'))
@@ -141,10 +221,13 @@ impl<'de> Iterator for Lexer<'de> {
                         }
                     };
 
-                    return Some(Ok(Token { origin: literal, kind: TokenKind::Number(num) }));
+                    return Some(Ok(Token {
+                        origin: literal,
+                        offset: ch_at,
+                        kind: TokenKind::Number(num),
+                    }));
                 }
 
-                Started::Slash => todo!(),
                 Started::IfEqualElse(yes, no) => {
                     self.rest = self.rest.trim_start();
 
@@ -156,9 +239,9 @@ impl<'de> Iterator for Lexer<'de> {
                         self.rest = &self.rest[1..];
                         self.cursor += 1;
 
-                        Some(Ok(Token { origin: span, kind: yes }))
+                        Some(Ok(Token { origin: span, offset: ch_at, kind: yes }))
                     } else {
-                        Some(Ok(Token { origin: ch_str, kind: no }))
+                        Some(Ok(Token { origin: ch_str, offset: ch_at, kind: no }))
                     }
                 }
             };
