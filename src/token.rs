@@ -6,6 +6,7 @@ pub struct Token<'de> {
     pub kind: TokenKind,
     pub origin: &'de str,
     pub offset: usize,
+    pub line: usize,
 }
 
 #[non_exhaustive]

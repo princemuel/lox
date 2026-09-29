@@ -1,18 +1,13 @@
 [package]
-name    = "loxxi"
+name    = "lox"
 version = "0.1.0"
 edition = "2024"
 
-[[bin]]
-name = "rlox"
-path = "src/main.rs"
-
 [[test]]
 harness = false
-name    = "lox_suite"
+name    = "fixtures"
 
 [dependencies]
-bytes     = "1"
 lexopt    = "0.3"
 thiserror = "2"
 
@@ -30,7 +25,7 @@ default_union_representation      = "deny"
 empty_drop                        = "deny"
 missing_asserts_for_indexing      = "deny"
 mixed_read_write_in_expression    = "deny"
-panic_in_result_fn                = "deny"
+panic_in_result_fn                = "warn"
 string_lit_as_bytes               = "warn"
 string_lit_chars_any              = "warn"
 string_slice                      = "warn"  # it is easy to inadvertently confuse char counts and str indices.

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, process};
 
 use lexopt::prelude::*;
-use loxxi::prelude::*;
+use lox::prelude::*;
 
 fn main() -> process::ExitCode {
     let args = match Args::parse() {
@@ -41,9 +41,12 @@ fn run(filename: &Path) -> process::ExitCode {
         Err(code) => return code,
     };
 
-    match Parser::new(&source).parse() {
-        Ok(value) => {
-            println!("{value}");
+    match Parser::new(&source).parse_program() {
+        Ok(program) => {
+            for stmt in &program {
+                println!("{stmt}");
+            }
+
             status(false)
         }
         Err(err) => {
@@ -149,7 +152,7 @@ impl Args {
             match arg {
                 Short('h') | Long("help") => show_help(subcommand.as_deref())?,
                 Short('V') | Long("version") => {
-                    println!("loxxi {}", env!("CARGO_PKG_VERSION"));
+                    println!("lox {}", env!("CARGO_PKG_VERSION"));
                     process::exit(0);
                 }
                 Value(val) if subcommand.is_none() => {
@@ -189,7 +192,7 @@ impl Args {
 }
 
 const USAGE: &str = "\
-Usage: loxxi <COMMAND>
+Usage: lox <COMMAND>
 
 Commands:
   tokenize  Print the tokens of FILE
@@ -205,7 +208,7 @@ Options:
 const TOKENIZE_USAGE: &str = "\
 Print the tokens of FILE
 
-Usage: loxxi tokenize <FILENAME>
+Usage: lox tokenize <FILENAME>
 
 Arguments:
   <FILENAME>
@@ -217,7 +220,7 @@ Options:
 const PARSE_USAGE: &str = "\
 Parse a single expression from FILE and print its tree
 
-Usage: loxxi parse <FILENAME>
+Usage: lox parse <FILENAME>
 
 Arguments:
   <FILENAME>
@@ -229,7 +232,7 @@ Options:
 const RUN_USAGE: &str = "\
 Parse and run FILE
 
-Usage: loxxi run <FILENAME>
+Usage: lox run <FILENAME>
 
 Arguments:
   <FILENAME>

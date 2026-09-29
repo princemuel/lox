@@ -1,3 +1,5 @@
+use alloc::borrow::ToOwned as _;
+use alloc::format;
 use core::iter::FusedIterator;
 
 use crate::error::{
@@ -13,30 +15,35 @@ pub struct Lexer<'de> {
     rest: &'de str,
     cursor: usize,
     source: &'de str,
+    line: usize,
     peeked: Option<Result<Token<'de>, Error>>,
 }
 
 impl<'de> Lexer<'de> {
     #[must_use]
     pub const fn new(input: &'de str) -> Self {
-        Self { cursor: 0, source: input, rest: input, peeked: None }
+        Self { cursor: 0, line: 1, source: input, rest: input, peeked: None }
     }
 
-    pub fn expect(&mut self, expected: TokenKind, message: &str) -> Result<Token<'de>, Error> {
-        self.expect_where(|next| next.kind == expected, message)
+    pub fn eat(&mut self, kind: TokenKind, msg: &str) -> Result<(), Error> {
+        self.expect(kind, msg).map(|_| ())
+    }
+
+    pub fn expect(&mut self, expected: TokenKind, msg: &str) -> Result<Token<'de>, Error> {
+        self.expect_where(|next| next.kind == expected, msg)
     }
 
     #[expect(clippy::missing_errors_doc)]
     pub fn expect_where(
         &mut self,
         mut predicate: impl FnMut(&Token<'de>) -> bool,
-        message: &str,
+        msg: &str,
     ) -> Result<Token<'de>, Error> {
         match self.next() {
             Some(Ok(token)) if predicate(&token) => Ok(token),
             Some(Ok(token)) => Err(UnexpectedTokenError {
                 src: self.source.to_owned(),
-                message: message.to_owned(),
+                message: msg.to_owned(),
                 found: format!("{token:?}"),
                 span_start: token.offset,
                 span_len: token.origin.len(),
@@ -86,7 +93,8 @@ impl<'de> Iterator for Lexer<'de> {
             self.rest = chars.as_str();
             self.cursor += ch.len_utf8();
 
-            let just = move |kind| Some(Ok(Token { kind, offset: ch_at, origin: ch_str }));
+            let line = self.line;
+            let just = move |kind| Some(Ok(Token { kind, offset: ch_at, origin: ch_str, line }));
 
             let started = match ch {
                 '(' => return just(TokenKind::LeftParen),
@@ -109,7 +117,13 @@ impl<'de> Iterator for Lexer<'de> {
                 '0'..='9' => Started::Number,
                 'a'..='z' | 'A'..='Z' | '_' => Started::Ident,
 
-                c if c.is_whitespace() => continue,
+                // whitespace in Lox is exactly these four (not Unicode `is_whitespace`).
+                '\n' => {
+                    self.line += 1;
+                    continue;
+                }
+                ' ' | '\r' | '\t' => continue,
+
                 c => {
                     return Some(Err(SingleTokenError::new(
                         self.source.to_owned(),
@@ -126,7 +140,14 @@ impl<'de> Iterator for Lexer<'de> {
                         let literal = &ch_onwards[..end + 1 + 1];
                         self.cursor += end + 1;
                         self.rest = &self.rest[end + 1..];
-                        Some(Ok(Token { origin: literal, offset: ch_at, kind: TokenKind::String }))
+                        self.line += literal.matches('\n').count();
+
+                        Some(Ok(Token {
+                            origin: literal,
+                            offset: ch_at,
+                            kind: TokenKind::String,
+                            line: self.line,
+                        }))
                     } else {
                         let err = StringTerminationError::new(
                             self.source.to_owned(),
@@ -149,7 +170,7 @@ impl<'de> Iterator for Lexer<'de> {
                         continue;
                     }
 
-                    Some(Ok(Token { origin: ch_str, offset: ch_at, kind: TokenKind::Slash }))
+                    Some(Ok(Token { origin: ch_str, offset: ch_at, kind: TokenKind::Slash, line }))
                 }
 
                 Started::Ident => {
@@ -183,27 +204,22 @@ impl<'de> Iterator for Lexer<'de> {
                         _ => TokenKind::Ident,
                     };
 
-                    return Some(Ok(Token { origin: literal, offset: ch_at, kind }));
+                    return Some(Ok(Token { origin: literal, offset: ch_at, kind, line }));
                 }
 
                 Started::Number => {
-                    let first_non_digit = ch_onwards
-                        .find(|ch| !matches!(ch, '.' | '0'..='9'))
-                        .unwrap_or(ch_onwards.len());
-
-                    let mut literal = &ch_onwards[..first_non_digit];
-                    let mut dotted = literal.splitn(3, '.');
-
-                    match (dotted.next(), dotted.next(), dotted.next()) {
-                        (Some(a), Some(b), Some(_)) => {
-                            literal = &literal[..=(a.len() + b.len())];
+                    // digits, then an optional `.` that must be followed by a
+                    // digit
+                    let digits = |s: &str| s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+                    let mut len = digits(ch_onwards);
+                    if let Some(fractional_part) = ch_onwards[len..].strip_prefix('.') {
+                        let n = digits(fractional_part);
+                        if n > 0 {
+                            len += 1 + n;
                         }
-                        (Some(a), Some(""), None) => {
-                            literal = &literal[..a.len()];
-                        }
-                        // leave literal as-is
-                        _ => {}
                     }
+
+                    let literal = &ch_onwards[..len];
 
                     let extra_bytes = literal.len() - ch.len_utf8();
                     self.cursor += extra_bytes;
@@ -225,23 +241,19 @@ impl<'de> Iterator for Lexer<'de> {
                         origin: literal,
                         offset: ch_at,
                         kind: TokenKind::Number(num),
+                        line,
                     }));
                 }
 
                 Started::IfEqualElse(yes, no) => {
-                    self.rest = self.rest.trim_start();
-
-                    let trimmed = ch_onwards.len() - self.rest.len() - 1;
-                    self.cursor += trimmed;
-
                     if self.rest.starts_with('=') {
-                        let span = &ch_onwards[..=(ch.len_utf8() + trimmed)];
+                        let span = &ch_onwards[..=ch.len_utf8()];
                         self.rest = &self.rest[1..];
                         self.cursor += 1;
 
-                        Some(Ok(Token { origin: span, offset: ch_at, kind: yes }))
+                        Some(Ok(Token { origin: span, offset: ch_at, kind: yes, line }))
                     } else {
-                        Some(Ok(Token { origin: ch_str, offset: ch_at, kind: no }))
+                        Some(Ok(Token { origin: ch_str, offset: ch_at, kind: no, line }))
                     }
                 }
             };
