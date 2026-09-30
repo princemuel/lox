@@ -17,6 +17,7 @@
 //! block       → "{" declaration* "}"
 //! ```
 
+use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use alloc::{format, vec};
@@ -374,7 +375,9 @@ impl<'de> Parser<'de> {
         // Prefix Position: what can *start* an expression.
         let mut lhs = match token.kind {
             TokenKind::Number(n) => Expr::Literal(Literal::Number(n)),
-            TokenKind::String => Expr::Literal(Literal::String(Token::unescape(token.origin))),
+            TokenKind::String => {
+                Expr::Literal(Literal::String(Cow::Borrowed(token.origin.trim_matches('"'))))
+            }
             TokenKind::True => Expr::Literal(Literal::Bool(true)),
             TokenKind::False => Expr::Literal(Literal::Bool(false)),
             TokenKind::Nil => Expr::Literal(Literal::Nil),
