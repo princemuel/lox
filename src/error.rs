@@ -35,8 +35,20 @@ impl Error {
 }
 
 pub trait ResultExt<T> {
+    /// # Errors
+    ///
+    /// Returns `Err` with the original error wrapped in [`Error::Context`] when
+    /// `self` is an error.
     fn context(self, context: impl Into<Cow<'static, str>>) -> Result<T, Error>;
 
+    /// Lazily adds context to an error.
+    ///
+    /// The context-producing closure is only evaluated when the result is
+    /// an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original error wrapped with the context produced by `f`.
     fn with_context<C: Into<Cow<'static, str>>>(self, f: impl FnOnce() -> C) -> Result<T, Error>;
 }
 
@@ -64,14 +76,14 @@ impl UnexpectedTokenError {
     #[must_use]
     pub fn new(
         src: &str,
-        message: &str,
+        msg: &str,
         found: impl core::fmt::Debug,
         offset: usize,
         len: usize,
     ) -> Self {
         Self {
             src: src.to_owned(),
-            message: message.to_owned(),
+            message: msg.to_owned(),
             found: format!("{found:?}"),
             span_start: offset,
             span_len: len,
