@@ -28,9 +28,9 @@ pub enum TokenKind {
     GreaterEqual,
     Less,
     Greater,
+    Equal,
     Slash,
     Bang,
-    Equal,
     String,
     Ident,
     Number(f64),
@@ -50,16 +50,6 @@ pub enum TokenKind {
     Var,
     For,
     While,
-}
-
-impl Token<'_> {
-    #[must_use]
-    pub fn unescape(value: &str) -> Cow<'_, str> {
-        // Lox has no escaping, so just remove the "
-        // Since it has no escaping, strings can't contain ",
-        // so trim won't trim multiple
-        Cow::Borrowed(value.trim_matches('"'))
-    }
 }
 
 impl fmt::Display for Token<'_> {
@@ -86,7 +76,9 @@ impl fmt::Display for Token<'_> {
             TokenKind::Slash => write!(f, "SLASH {origin} null"),
             TokenKind::Bang => write!(f, "BANG {origin} null"),
             TokenKind::Equal => write!(f, "EQUAL {origin} null"),
-            TokenKind::String => write!(f, "STRING {origin} {}", Token::unescape(origin)),
+            TokenKind::String => {
+                write!(f, "STRING {origin} {}", Cow::Borrowed(origin.trim_matches('"')))
+            }
             TokenKind::Ident => write!(f, "IDENTIFIER {origin} null"),
             // tests require that integers are printed as N.0
             TokenKind::Number(v) if v.fract() == 0.0 => write!(f, "NUMBER {origin} {v}.0"),

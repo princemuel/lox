@@ -1,5 +1,4 @@
 use alloc::borrow::ToOwned as _;
-use alloc::format;
 use core::iter::FusedIterator;
 
 use crate::error::{
@@ -25,10 +24,12 @@ impl<'de> Lexer<'de> {
         Self { cursor: 0, line: 1, source: input, rest: input, peeked: None }
     }
 
+    #[expect(clippy::missing_errors_doc)]
     pub fn eat(&mut self, kind: TokenKind, msg: &str) -> Result<(), Error> {
         self.expect(kind, msg).map(|_| ())
     }
 
+    #[expect(clippy::missing_errors_doc)]
     pub fn expect(&mut self, expected: TokenKind, msg: &str) -> Result<Token<'de>, Error> {
         self.expect_where(|next| next.kind == expected, msg)
     }
@@ -41,13 +42,13 @@ impl<'de> Lexer<'de> {
     ) -> Result<Token<'de>, Error> {
         match self.next() {
             Some(Ok(token)) if predicate(&token) => Ok(token),
-            Some(Ok(token)) => Err(UnexpectedTokenError {
-                src: self.source.to_owned(),
-                message: msg.to_owned(),
-                found: format!("{token:?}"),
-                span_start: token.offset,
-                span_len: token.origin.len(),
-            }
+            Some(Ok(token)) => Err(UnexpectedTokenError::new(
+                self.source,
+                msg,
+                token,
+                token.offset,
+                token.origin.len(),
+            )
             .into()),
             Some(Err(e)) => Err(e),
             None => Err(Eof.into()),
@@ -137,7 +138,7 @@ impl<'de> Iterator for Lexer<'de> {
             break match started {
                 Started::String => {
                     if let Some(end) = self.rest.find('"') {
-                        let literal = &ch_onwards[..end + 1 + 1];
+                        let literal = &ch_onwards[..=(end + 1)];
                         self.cursor += end + 1;
                         self.rest = &self.rest[end + 1..];
                         self.line += literal.matches('\n').count();
@@ -164,7 +165,7 @@ impl<'de> Iterator for Lexer<'de> {
 
                 Started::Slash => {
                     if self.rest.starts_with('/') {
-                        let line_end = self.rest.find('\n').unwrap_or_else(|| self.rest.len());
+                        let line_end = self.rest.find('\n').unwrap_or(self.rest.len());
                         self.cursor += line_end;
                         self.rest = &self.rest[line_end..];
                         continue;
