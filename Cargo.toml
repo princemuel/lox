@@ -8,6 +8,10 @@ harness = false
 name    = "fixtures"
 
 [dependencies]
+eros      = {
+  version          = "0.8",
+  default-features = false,
+}
 lexopt    = "0.3"
 thiserror = "2"
 
