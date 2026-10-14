@@ -12,81 +12,43 @@ pub struct Token<'de> {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenKind {
-    /// `(`
     LeftParen,
-    /// `)`
     RightParen,
-    /// `{`
     LeftBrace,
-    /// `}`
     RightBrace,
-    /// `,`
     Comma,
-    /// `.`
     Dot,
-    /// `-`
     Minus,
-    /// `+`
     Plus,
-    /// `;`
     Semicolon,
-    /// `*`
     Star,
-    /// `/`
     Slash,
-
-    /// `!`
     Bang,
-    /// `!=`
     BangEqual,
-    /// `=`
     Equal,
-    /// `==`
     EqualEqual,
-    /// `>`
     Greater,
-    /// `>=`
     GreaterEqual,
-    /// `<`
     Less,
-    /// `<=`
     LessEqual,
-
     String,
     Ident,
     Number(f64),
-
-    /// `and`
     And,
-    /// `or`
     Or,
-    /// `if`
     If,
-    /// `else`
     Else,
-    /// `true`
     True,
-    /// `false`
     False,
-    /// `fun`
     Fun,
-    /// `class`
     Class,
-    /// `nil`
     Nil,
-    /// `print`
     Print,
-    /// `return`
     Return,
-    /// `this`
     This,
-    /// `super`
     Super,
-    /// `var`
     Var,
-    /// `for`
     For,
-    /// `while`
     While,
 }
 
