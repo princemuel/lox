@@ -1,61 +1,25 @@
 use alloc::borrow::ToOwned as _;
 use core::iter::FusedIterator;
 
-use crate::error::{
-    Eof,
-    Error,
-    ParseNumberError,
-    SingleTokenError,
-    StringTerminationError,
-    UnexpectedTokenError,
-};
+use crate::error::{GlobalError, ParseNumberError, SingleTokenError, StringTerminationError};
 use crate::token::{Token, TokenKind};
-pub struct Lexer<'de> {
+pub struct Scanner<'de> {
     rest: &'de str,
     cursor: usize,
-    source: &'de str,
     line: usize,
-    peeked: Option<Result<Token<'de>, Error>>,
+    peeked: Option<Result<Token<'de>, GlobalError>>,
 }
 
-impl<'de> Lexer<'de> {
+impl<'de> Scanner<'de> {
     #[must_use]
     pub const fn new(input: &'de str) -> Self {
-        Self { cursor: 0, line: 1, source: input, rest: input, peeked: None }
+        Self { cursor: 0, line: 1, rest: input, peeked: None }
     }
 
-    #[expect(clippy::missing_errors_doc)]
-    pub fn eat(&mut self, kind: TokenKind, msg: &str) -> Result<(), Error> {
-        self.expect(kind, msg).map(|_| ())
-    }
+    #[must_use]
+    pub const fn line(&self) -> usize { self.line }
 
-    #[expect(clippy::missing_errors_doc)]
-    pub fn expect(&mut self, expected: TokenKind, msg: &str) -> Result<Token<'de>, Error> {
-        self.expect_where(|next| next.kind == expected, msg)
-    }
-
-    #[expect(clippy::missing_errors_doc)]
-    pub fn expect_where(
-        &mut self,
-        mut predicate: impl FnMut(&Token<'de>) -> bool,
-        msg: &str,
-    ) -> Result<Token<'de>, Error> {
-        match self.next() {
-            Some(Ok(token)) if predicate(&token) => Ok(token),
-            Some(Ok(token)) => Err(UnexpectedTokenError::new(
-                self.source,
-                msg,
-                token,
-                token.offset,
-                token.origin.len(),
-            )
-            .into()),
-            Some(Err(e)) => Err(e),
-            None => Err(Eof.into()),
-        }
-    }
-
-    pub fn peek(&mut self) -> Option<&Result<Token<'de>, Error>> {
+    pub fn peek(&mut self) -> Option<&Result<Token<'de>, GlobalError>> {
         if self.peeked.is_some() {
             return self.peeked.as_ref();
         }
@@ -73,11 +37,10 @@ enum Started {
     IfEqualElse(TokenKind, TokenKind),
 }
 
-impl<'de> Iterator for Lexer<'de> {
-    type Item = Result<Token<'de>, Error>;
+impl<'de> Iterator for Scanner<'de> {
+    type Item = Result<Token<'de>, GlobalError>;
 
     #[expect(clippy::too_many_lines)]
-    /// once the iterator returns `Error`, it will only return `None`
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.peeked.take() {
             return Some(next);
@@ -125,14 +88,7 @@ impl<'de> Iterator for Lexer<'de> {
                 }
                 ' ' | '\r' | '\t' => continue,
 
-                c => {
-                    return Some(Err(SingleTokenError::new(
-                        self.source.to_owned(),
-                        c,
-                        self.cursor - c.len_utf8(),
-                    )
-                    .into()));
-                }
+                c => return Some(Err(SingleTokenError::new(c, ch_at, line).into())),
             };
 
             break match started {
@@ -150,12 +106,10 @@ impl<'de> Iterator for Lexer<'de> {
                             line: self.line,
                         }))
                     } else {
-                        let err = StringTerminationError::new(
-                            self.source.to_owned(),
-                            self.cursor - ch.len_utf8(),
-                        );
-
                         // swallow the remainder of input as being a string
+                        self.line += self.rest.matches('\n').count();
+                        let err = StringTerminationError::new(ch_at, self.line);
+
                         self.cursor += self.rest.len();
                         self.rest = &self.rest[self.rest.len()..];
 
@@ -229,12 +183,10 @@ impl<'de> Iterator for Lexer<'de> {
                     let num = match literal.parse() {
                         Ok(num) => num,
                         Err(source) => {
-                            return Some(Err(ParseNumberError {
-                                literal: literal.to_owned(),
-                                span_start: self.cursor - literal.len(),
-                                source,
-                            }
-                            .into()));
+                            let err =
+                                ParseNumberError::new(literal.to_owned(), ch_at, line, source);
+
+                            return Some(Err(err.into()));
                         }
                     };
 
@@ -246,15 +198,15 @@ impl<'de> Iterator for Lexer<'de> {
                     }));
                 }
 
-                Started::IfEqualElse(yes, no) => {
+                Started::IfEqualElse(r#true, r#false) => {
                     if self.rest.starts_with('=') {
                         let span = &ch_onwards[..=ch.len_utf8()];
                         self.rest = &self.rest[1..];
                         self.cursor += 1;
 
-                        Some(Ok(Token { origin: span, offset: ch_at, kind: yes, line }))
+                        Some(Ok(Token { origin: span, offset: ch_at, kind: r#true, line }))
                     } else {
-                        Some(Ok(Token { origin: ch_str, offset: ch_at, kind: no, line }))
+                        Some(Ok(Token { origin: ch_str, offset: ch_at, kind: r#false, line }))
                     }
                 }
             };
@@ -262,4 +214,4 @@ impl<'de> Iterator for Lexer<'de> {
     }
 }
 
-impl FusedIterator for Lexer<'_> {}
+impl FusedIterator for Scanner<'_> {}

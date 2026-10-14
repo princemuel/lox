@@ -116,7 +116,7 @@ impl fmt::Display for Token<'_> {
             TokenKind::Less => write!(f, "LESS {origin} null"),
             TokenKind::LessEqual => write!(f, "LESS_EQUAL {origin} null"),
 
-            TokenKind::Identifier => write!(f, "IDENTIFIER {origin} null"),
+            TokenKind::Ident => write!(f, "IDENTIFIER {origin} null"),
             TokenKind::String => {
                 write!(f, "STRING {origin} {}", Cow::Borrowed(origin.trim_matches('"')))
             }

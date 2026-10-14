@@ -1,152 +1,117 @@
-use alloc::borrow::{Cow, ToOwned as _};
-use alloc::boxed::Box;
+use alloc::borrow::ToOwned as _;
 use alloc::format;
 use alloc::string::String;
+use core::fmt;
+use core::num::ParseFloatError;
 
 use thiserror::Error as ThisError;
 
+/// A lexical error.
 #[non_exhaustive]
 #[derive(Clone, Debug, ThisError)]
-pub enum Error {
+pub enum GlobalError {
     #[error(transparent)]
     SingleToken(#[from] SingleTokenError),
+
     #[error(transparent)]
     StringTermination(#[from] StringTerminationError),
+
     #[error(transparent)]
     ParseNumber(#[from] ParseNumberError),
-    #[error(transparent)]
-    UnexpectedToken(#[from] UnexpectedTokenError),
-    #[error(transparent)]
-    EndOfFile(#[from] Eof),
-
-    #[error("{context}")]
-    Context {
-        context: Cow<'static, str>,
-        #[source]
-        source: Box<Self>,
-    },
-}
-
-impl Error {
-    #[must_use]
-    pub fn context(self, context: impl Into<Cow<'static, str>>) -> Self {
-        Self::Context { context: context.into(), source: Box::new(self) }
-    }
-}
-
-pub trait ResultExt<T> {
-    /// # Errors
-    ///
-    /// Returns `Err` with the original error wrapped in [`Error::Context`] when
-    /// `self` is an error.
-    fn context(self, context: impl Into<Cow<'static, str>>) -> Result<T, Error>;
-
-    /// Lazily adds context to an error.
-    ///
-    /// The context-producing closure is only evaluated when the result is
-    /// an error.
-    ///
-    /// # Errors
-    ///
-    /// Returns the original error wrapped with the context produced by `f`.
-    fn with_context<C: Into<Cow<'static, str>>>(self, f: impl FnOnce() -> C) -> Result<T, Error>;
-}
-
-impl<T, E: Into<Error>> ResultExt<T> for Result<T, E> {
-    fn context(self, context: impl Into<Cow<'static, str>>) -> Result<T, Error> {
-        self.map_err(|e| e.into().context(context))
-    }
-
-    fn with_context<C: Into<Cow<'static, str>>>(self, f: impl FnOnce() -> C) -> Result<T, Error> {
-        self.map_err(|e| e.into().context(f()))
-    }
 }
 
 #[derive(Clone, Debug, ThisError)]
-#[error("{message} at byte {span_start}")]
-pub struct UnexpectedTokenError {
-    pub src: String,
-    pub message: String,
-    pub found: String,
-    pub span_start: usize,
-    pub span_len: usize,
-}
-
-impl UnexpectedTokenError {
-    #[must_use]
-    pub fn new(
-        src: &str,
-        msg: &str,
-        found: impl core::fmt::Debug,
-        offset: usize,
-        len: usize,
-    ) -> Self {
-        Self {
-            src: src.to_owned(),
-            message: msg.to_owned(),
-            found: format!("{found:?}"),
-            span_start: offset,
-            span_len: len,
-        }
-    }
-
-    #[must_use]
-    pub fn line(&self) -> usize { line_of(&self.src, self.span_start) }
-}
-
-#[derive(Clone, Debug, ThisError)]
-#[error("Unexpected EOF")]
-pub struct Eof;
-
-#[derive(Clone, Debug, ThisError)]
-#[error("Unexpected token '{token}' at byte {span_start}")]
+#[error("[line {line}] Error: Unterminated string.")]
 pub struct SingleTokenError {
-    pub src: String,
     pub token: char,
     pub span_start: usize,
+    pub line: usize,
 }
-
 impl SingleTokenError {
     #[must_use]
-    pub const fn new(src: String, token: char, span_start: usize) -> Self {
-        Self { src, token, span_start }
+    pub const fn new(token: char, span_start: usize, line: usize) -> Self {
+        Self { token, span_start, line }
     }
-
-    #[must_use]
-    pub fn line(&self) -> usize { line_of(&self.src, self.span_start) }
 }
 
 #[derive(Clone, Debug, ThisError)]
-#[error("Unterminated string starting at byte {span_start}")]
+#[error("[line {line}] Error: Unterminated string.")]
 pub struct StringTerminationError {
-    pub src: String,
     pub span_start: usize,
+    pub line: usize,
 }
-
 impl StringTerminationError {
     #[must_use]
-    pub const fn new(src: String, span_start: usize) -> Self { Self { src, span_start } }
-
-    #[must_use]
-    pub fn line(&self) -> usize { line_of(&self.src, self.span_start) }
+    pub const fn new(span_start: usize, line: usize) -> Self { Self { span_start, line } }
 }
 
 #[derive(Clone, Debug, ThisError)]
-#[error("Invalid number literal '{literal}' at byte {span_start}: {source}")]
+#[error("[line {line}] Error: Invalid number literal '{literal}': {source}")]
 pub struct ParseNumberError {
     pub literal: String,
     pub span_start: usize,
+    pub line: usize,
     #[source]
-    pub source: core::num::ParseFloatError,
+    pub source: ParseFloatError,
 }
 
-/// 1-based line of a byte offset (counts `\n`s before it, like jlox/clox).
-/// Never panics: `offset` is always a char boundary, and we only look at bytes.
-#[expect(clippy::naive_bytecount)]
-fn line_of(src: &str, offset: usize) -> usize {
-    src.as_bytes()[..offset.min(src.len())]
-        .iter()
-        .filter(|&&b| b == b'\n')
-        .count()
-        + 1
+impl ParseNumberError {
+    #[must_use]
+    pub const fn new(
+        literal: String,
+        span_start: usize,
+        line: usize,
+        source: ParseFloatError,
+    ) -> Self {
+        Self { literal, span_start, line, source }
+    }
+}
+
+/// Where in the source a [`SyntaxError`] points.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Location {
+    /// No particular token (lexical errors): `[line 3] Error: message`.
+    Unspecified,
+    /// At a token's text: `[line 3] Error at 'b': message`.
+    Token(String),
+    /// Ran out of input: `[line 3] Error at end: message`.
+    End,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SyntaxError {
+    pub line: usize,
+    pub location: Location,
+    pub message: String,
+}
+
+impl SyntaxError {
+    #[must_use]
+    pub const fn new(line: usize, location: Location, message: String) -> Self {
+        Self { line, location, message }
+    }
+}
+
+impl fmt::Display for SyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { line, location, message } = self;
+        match location {
+            Location::Unspecified => write!(f, "[line {line}] Error: {message}"),
+            Location::Token(lexeme) => write!(f, "[line {line}] Error at '{lexeme}': {message}"),
+            Location::End => write!(f, "[line {line}] Error at end: {message}"),
+        }
+    }
+}
+
+impl core::error::Error for SyntaxError {}
+
+impl From<GlobalError> for SyntaxError {
+    fn from(err: GlobalError) -> Self {
+        let (line, message) = match err {
+            GlobalError::SingleToken(e) => (e.line, "Unexpected character.".to_owned()),
+            GlobalError::StringTermination(e) => (e.line, "Unterminated string.".to_owned()),
+            GlobalError::ParseNumber(e) => (e.line, format!("Invalid number '{}'.", e.literal)),
+        };
+        Self { line, location: Location::Unspecified, message }
+    }
 }
