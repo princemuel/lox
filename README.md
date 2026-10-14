@@ -1,8 +1,6 @@
 # Lox
 
-This is the Rust implementation of an intepreter for the Lox programming language.
-
-Lox, is a full-featured, efficient scripting language from Robert Nystrom's book, ["Crafting Interpreters"][crafting-interpreters]. Lox compiles Lox source code into a bytecode format that is executed by a portable virtual machine.
+Lox, is a full-featured, efficient scripting language from Robert Nystrom's book, ["Crafting Interpreters"][crafting-interpreters].
 
 A more complete description of the features of Lox can be found [here][the-lox-language]
 
