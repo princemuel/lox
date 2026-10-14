@@ -1,3 +1,5 @@
+//! The Abstract Syntax Tree produced by the parser.
+
 use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -70,6 +72,8 @@ impl fmt::Display for BinaryOp {
     }
 }
 
+/// `and` / `or` are separate from [`BinaryOp`] because they short-circuit i.e.
+/// the right operand is not always evaluated
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LogicalOp {
     And,
@@ -92,17 +96,17 @@ pub enum Expr<'de> {
     Super { keyword: Token<'de>, method: Token<'de> },
     Grouping(Box<Self>),
     Unary { op: UnaryOp, token: Token<'de>, right: Box<Self> },
-    Binary { left: Box<Self>, op: BinaryOp, token: Token<'de>, right: Box<Self> },
+    Binary { left: Box<Self>, op: BinaryOp, right: Box<Self>, token: Token<'de> },
     Logical { left: Box<Self>, op: LogicalOp, right: Box<Self> },
     Assign { name: Token<'de>, value: Box<Self> },
-    Call { callee: Box<Self>, paren: Token<'de>, args: Vec<Self> },
-    Get { object: Box<Self>, name: Token<'de> },
-    Set { object: Box<Self>, name: Token<'de>, value: Box<Self> },
+    Call { paren: Token<'de>, callee: Box<Self>, args: Vec<Self> },
+    Get { name: Token<'de>, object: Box<Self> },
+    Set { name: Token<'de>, object: Box<Self>, value: Box<Self> },
 }
 impl fmt::Display for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Literal(lit) => write!(f, "{lit}"),
+            Self::Literal(literal) => write!(f, "{literal}"),
             Self::Variable(name) => f.write_str(name.origin),
             Self::This(_) => f.write_str("this"),
             Self::Super { method, .. } => write!(f, "(. super {})", method.origin),
@@ -133,6 +137,7 @@ pub struct Function<'de> {
 impl fmt::Display for Function<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(def {} (", self.name.origin)?;
+
         for (idx, param) in self.params.iter().enumerate() {
             if idx > 0 {
                 f.write_str(" ")?;
@@ -147,6 +152,9 @@ impl fmt::Display for Function<'_> {
     }
 }
 
+/// The statement class
+///
+/// There is no `For` variant: the parser desugars `for` into `while` + blocks
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt<'de> {
     Expression(Expr<'de>),
@@ -170,11 +178,13 @@ impl fmt::Display for Stmt<'_> {
             Self::Var { name, initializer: None } => write!(f, "(var {})", name.origin),
             Self::Block(stmts) => {
                 f.write_str("(block")?;
+
                 stmts.iter().try_for_each(|stmt| write!(f, " {stmt}"))?;
+
                 f.write_str(")")
             }
-            Self::If { condition, then_branch, else_branch: Some(no) } => {
-                write!(f, "(if {condition} {then_branch} {no})")
+            Self::If { condition, then_branch, else_branch: Some(fallback) } => {
+                write!(f, "(if {condition} {then_branch} {fallback})")
             }
             Self::If { condition, then_branch, else_branch: None } => {
                 write!(f, "(if {condition} {then_branch})")
@@ -185,12 +195,15 @@ impl fmt::Display for Stmt<'_> {
             Self::Return { value: None, .. } => f.write_str("(return)"),
             Self::Class { name, superclass, methods } => {
                 write!(f, "(class {}", name.origin)?;
-                if let Some(sup) = superclass {
-                    write!(f, " < {sup}")?;
+
+                if let Some(class) = superclass {
+                    write!(f, " < {class}")?;
                 }
+
                 methods
                     .iter()
                     .try_for_each(|method| write!(f, " {method}"))?;
+
                 f.write_str(")")
             }
         }
