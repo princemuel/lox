@@ -3,18 +3,18 @@
 //! Grammar:
 //!
 //! ```text
-//! program     → declaration* EOF
-//! declaration → classDecl | funDecl | varDecl | statement
-//! classDecl   → "class" IDENT ( "<" IDENT )? "{" function* "}"
-//! funDecl     → "fun" function
-//! function    → IDENT "(" parameters? ")" block
-//! varDecl     → "var" IDENT ( "=" expression )? ";"
-//! statement   → exprStmt | forStmt | ifStmt | printStmt | returnStmt | whileStmt | block
-//! forStmt     → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement
-//! ifStmt      → "if" "(" expression ")" statement ( "else" statement )?
-//! returnStmt  → "return" expression? ";"
-//! whileStmt   → "while" "(" expression ")" statement
-//! block       → "{" declaration* "}"
+//! Program     → Declaration* EOF
+//! Declaration → ClassDecl | FunDecl | VarDecl | Statement
+//! ClassDecl   → "class" IDENT ( "<" IDENT )? "{" function* "}"
+//! FunDecl     → "fun" function
+//! function    → IDENT "(" parameters? ")" Block
+//! VarDecl     → "var" IDENT ( "=" expression )? ";"
+//! Statement   → ExprStmt | ForStmt | IfStmt | PrintStmt | ReturnStmt | WhileStmt | Block
+//! ForStmt     → "for" "(" ( VarDecl | ExprStmt | ";" ) expression? ";" expression? ")" statement
+//! IfStmt      → "if" "(" expression ")" statement ( "else" statement )?
+//! ReturnStmt  → "return" expression? ";"
+//! WhileStmt   → "while" "(" expression ")" statement
+//! Block       → "{" Declaration* "}"
 //! ```
 
 use alloc::borrow::{Cow, ToOwned as _};
@@ -28,7 +28,7 @@ use crate::scan::Scanner;
 use crate::token::{Token, TokenKind};
 
 /// What a grammar rule returns: its result, or the error that aborts the
-/// current declaration (see the module docs).
+/// current declaration (see the module docs).3
 type ParseResult<T> = Result<T, SyntaxError>;
 
 /// Lox caps parameters and arguments at 255.
@@ -217,9 +217,10 @@ impl<'de> Parser<'de> {
     /// Records an error without aborting the current declaration.
     fn report(&mut self, error: SyntaxError) { self.errors.push(error); }
 
-    /// After an error: skip tokens until something that plausibly starts a new
-    /// statement (just past a `;`, or a keyword that begins a declaration), so
-    /// one mistake doesn't cascade into a wall of bogus follow-up errors.
+    /// After an error, skip tokens until something that
+    /// plausibly starts a new statement (just past a `;`, or a keyword that
+    /// begins a declaration), so one mistake doesn't cascade into an annoying
+    /// wall of bogus follow-up errors.
     fn synchronize(&mut self) {
         // The offending token was never consumed; make sure we always advance.
         self.bump();
@@ -248,7 +249,7 @@ impl<'de> Parser<'de> {
     }
 
     /// One declaration, with error recovery: this is where a thrown error
-    /// stops. On error the mistake is recorded, the parser re-synchronizes,
+    /// stops. On error, the mistake is recorded, the parser re-synchronizes,
     /// and `None` is returned in place of the statement.
     fn declaration(&mut self) -> Option<Stmt<'de>> {
         let result = if self.eat(TokenKind::Class) {
@@ -293,7 +294,8 @@ impl<'de> Parser<'de> {
         Ok(Stmt::Class { name, superclass, methods })
     }
 
-    /// `kind` is "function" or "method"; it only affects error messages.
+    /// `kind` is "function" or "method"; here, it is only used for error
+    /// messages.
     fn function(&mut self, kind: &str) -> ParseResult<Function<'de>> {
         let name = self.consume(TokenKind::Ident, &format!("Expect {kind} name."))?;
         self.expect(TokenKind::LeftParen, &format!("Expect '(' after {kind} name."))?;
@@ -463,11 +465,11 @@ impl<'de> Parser<'de> {
 
     fn expression(&mut self) -> ParseResult<Expr<'de>> { self.expression_within(0) }
 
-    /// Pratt parser. Parses an expression, but stops in front of any operator
-    /// that binds *looser* than `min_bp`. Callers need to pass the right
-    /// binding power of the operator they just consumed so that the interpreter
-    /// can decide whether `1 - 2 - 3` groups left and `a = b = c` groups
-    /// right.
+    /// Parses an expression via a pratt parser, but stops in front of any
+    /// operator that binds *looser* than `min_bp`. Callers need to pass the
+    /// right binding power of the operator they just consumed so that the
+    /// interpreter can decide whether `1 - 2 - 3` groups left and `a = b =
+    /// c` groups right.
     fn expression_within(&mut self, min_bp: u8) -> ParseResult<Expr<'de>> {
         let Some(token) = self.peek() else {
             return Err(self.error_here("Expect expression."));
@@ -476,9 +478,10 @@ impl<'de> Parser<'de> {
         // Prefix position: what can *start* an expression. The token is only
         // consumed once we know it can, so an error points at it and
         // `synchronize` is the one that skips it.
-        if !starts_expression(token.kind) {
+        if !can_start_expression(token.kind) {
             return Err(Self::error_at(token, "Expect expression."));
         }
+
         self.bump();
 
         // Prefix Position: what can *start* an expression.
@@ -589,7 +592,7 @@ impl<'de> Parser<'de> {
 }
 
 /// Can a token of this kind begin an expression?
-const fn starts_expression(kind: TokenKind) -> bool {
+const fn can_start_expression(kind: TokenKind) -> bool {
     matches!(
         kind,
         TokenKind::Number(_)

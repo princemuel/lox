@@ -14,7 +14,7 @@
           "arguments": ["--filename", "{buffer_path}", "--indent", "2"],
         },
       },
-    }
+    },
   },
   "lsp": {
     "rust-analyzer": {

@@ -240,23 +240,24 @@ fn parse_expression_reports_errors_too() {
 /// - `limit` (clox's bytecode limits)
 /// - `scanning` (token  soup)
 /// - `expressions` (single expressions, not programs).
-fn lox_files(dir: &Path, out: &mut Vec<PathBuf>) {
+fn discover(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
         panic!("cannot read {}", dir.display());
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_dir() {
-            let skip = path.file_name().is_some_and(|name| {
-                ["limit", "scanning", "expressions"]
-                    .iter()
-                    .any(|s| name == *s)
-            });
-            if !skip {
-                lox_files(&path, out);
-            }
-        } else if path.extension().is_some_and(|ext| ext == "lox") {
-            out.push(path);
+        if !path.is_dir() && path.extension().is_some_and(|ext| ext == "lox") {
+            out.push(path.clone());
+        }
+
+        let should_skip = path.file_name().is_some_and(|name| {
+            ["limit", "scanning", "expressions"]
+                .iter()
+                .any(|s| name == *s)
+        });
+
+        if !should_skip {
+            discover(&path, out);
         }
     }
 }
@@ -268,25 +269,29 @@ fn lox_files(dir: &Path, out: &mut Vec<PathBuf>) {
 fn every_program_not_expected_to_fail_parses_cleanly() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let mut files = Vec::new();
-    lox_files(&root, &mut files);
+    discover(&root, &mut files);
     files.sort();
 
-    let mut checked = 0_usize;
+    let mut checked = 0u16;
     let mut failures = Vec::new();
+
     for path in &files {
         let source = match fs::read(path) {
             Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
             Err(err) => panic!("cannot read {}: {err}", path.display()),
         };
+
         if source
             .lines()
-            .any(|l| l.contains("// Error") || l.contains("] Error"))
+            .any(|line| line.contains("// Error") || line.contains("] Error"))
         {
             continue;
         }
+
         checked += 1;
+
         if let Err(errs) = Parser::new(&source).parse_program() {
-            let shown: Vec<String> = errs.iter().map(ToString::to_string).collect();
+            let shown: Vec<_> = errs.iter().map(ToString::to_string).collect();
             failures.push(format!("{}: {}", path.display(), shown.join(" | ")));
         }
     }
