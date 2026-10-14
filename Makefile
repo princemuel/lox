@@ -24,5 +24,5 @@ resolve:
 format:
 	cargo fmt --all -- --check
 
-rimraf:
+clean:
 	cargo clean
