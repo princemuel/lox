@@ -1,5 +1,5 @@
-#![allow(clippy::print_stdout, reason = "this project uses logs")]
-#![allow(clippy::print_stderr, reason = "this project uses logs")]
+#![expect(clippy::print_stdout, reason = "this project uses stdout logs")]
+#![expect(clippy::print_stderr, reason = "this project uses stderr logs")]
 
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
@@ -49,10 +49,17 @@ fn run(filename: &Path) -> process::ExitCode {
 
             status(false)
         }
-        Err(err) => {
-            eprintln!("Error: {err}");
+        Err(errors) => {
+            report(&errors);
             status(true)
         }
+    }
+}
+
+/// One line per problem, on stderr, in the book's format.
+fn report(errors: &[SyntaxError]) {
+    for error in errors {
+        eprintln!("{error}");
     }
 }
 
@@ -67,9 +74,8 @@ fn parse(filename: &Path) -> process::ExitCode {
             println!("{token_tree}");
             status(false)
         }
-        Err(err) => {
-            // FIXME: match the error line format
-            eprintln!("Error: {err}");
+        Err(errors) => {
+            report(&errors);
             status(true)
         }
     }
@@ -85,7 +91,7 @@ fn tokenize(filename: &Path) -> process::ExitCode {
     let mut out = io::BufWriter::new(stdout.lock());
     let mut had_error = false;
 
-    for token in Lexer::new(&source) {
+    for token in Scanner::new(&source) {
         match token {
             Ok(token) => {
                 // Ignoring write errors (e.g. broken pipe) is fine for a CLI.
@@ -93,19 +99,7 @@ fn tokenize(filename: &Path) -> process::ExitCode {
             }
             Err(err) => {
                 had_error = true;
-
-                match err {
-                    Error::SingleToken(e) => {
-                        eprintln!("[line {}] Error: Unexpected character: {}", e.line(), e.token);
-                    }
-                    Error::StringTermination(e) => {
-                        eprintln!("[line {}] Error: Unterminated string.", e.line());
-                    }
-                    Error::ParseNumber(e) => {
-                        eprintln!("Error: invalid number literal '{}': {}", e.literal, e.source);
-                    }
-                    other => eprintln!("Error: {other}"),
-                }
+                eprintln!("{err}");
             }
         }
     }

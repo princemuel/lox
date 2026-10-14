@@ -20,7 +20,6 @@ impl fmt::Display for Literal<'_> {
             Self::Nil => f.write_str("nil"),
             Self::Bool(b) => write!(f, "{b}"),
             Self::String(s) => f.write_str(s),
-            // tests require that integers are printed as N.0
             Self::Number(n) if n.fract() == 0.0 => write!(f, "{n}.0"),
             Self::Number(n) => write!(f, "{n}"),
         }
@@ -114,7 +113,7 @@ impl fmt::Display for Expr<'_> {
             Self::Assign { name, value } => write!(f, "(= {} {value})", name.origin),
             Self::Call { callee, args, .. } => {
                 write!(f, "({callee}")?;
-                write_each(f, args)?;
+                args.iter().try_for_each(|arg| write!(f, " {arg}"))?;
                 f.write_str(")")
             }
             Self::Get { object, name } => write!(f, "(. {object} {})", name.origin),
@@ -143,7 +142,7 @@ impl fmt::Display for Function<'_> {
         }
 
         f.write_str(")")?;
-        write_each(f, &self.body)?;
+        self.body.iter().try_for_each(|item| write!(f, " {item}"))?;
         f.write_str(")")
     }
 }
@@ -171,7 +170,7 @@ impl fmt::Display for Stmt<'_> {
             Self::Var { name, initializer: None } => write!(f, "(var {})", name.origin),
             Self::Block(stmts) => {
                 f.write_str("(block")?;
-                write_each(f, stmts)?;
+                stmts.iter().try_for_each(|stmt| write!(f, " {stmt}"))?;
                 f.write_str(")")
             }
             Self::If { condition, then_branch, else_branch: Some(no) } => {
@@ -189,19 +188,16 @@ impl fmt::Display for Stmt<'_> {
                 if let Some(sup) = superclass {
                     write!(f, " < {sup}")?;
                 }
-                write_each(f, methods)?;
+                methods
+                    .iter()
+                    .try_for_each(|method| write!(f, " {method}"))?;
                 f.write_str(")")
             }
         }
     }
 }
 
-/// Writes ` a b c` (a leading space before every item).
-fn write_each<T: fmt::Display>(f: &mut fmt::Formatter<'_>, items: &[T]) -> fmt::Result {
-    items.iter().try_for_each(|item| write!(f, " {item}"))
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operator {
     Minus,
     Plus,
