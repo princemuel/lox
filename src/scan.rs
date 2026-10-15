@@ -3,6 +3,7 @@ use core::iter::FusedIterator;
 
 use crate::error::{GlobalError, ParseNumberError, SingleTokenError, StringTerminationError};
 use crate::token::{Token, TokenKind};
+
 pub struct Scanner<'de> {
     rest: &'de str,
     cursor: usize,
