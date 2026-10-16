@@ -28,6 +28,63 @@ impl<'de> Scanner<'de> {
         self.peeked = self.next();
         self.peeked.as_ref()
     }
+
+    /// Consumes the next `bytes` bytes of input.
+    fn advance(&mut self, bytes: usize) {
+        self.cursor += bytes;
+        self.rest = &self.rest[bytes..];
+    }
+
+    /// Finishes a string whose opening quote, found at `at`, was just consumed.
+    /// `from_quote` is the input starting at that quote.
+    fn string(&mut self, from_quote: &'de str, at: usize) -> Result<Token<'de>, GlobalError> {
+        // `end` is the closing quote's offset, counted from just after the
+        // opening one.
+        if let Some(end) = self.rest.find('"') {
+            let literal = &from_quote[..=(end + 1)];
+            self.advance(end + 1);
+            self.line += literal.matches('\n').count();
+
+            Ok(Token { origin: literal, offset: at, kind: TokenKind::String, line: self.line })
+        } else {
+            // swallow the remainder of input as being a string
+            self.line += self.rest.matches('\n').count();
+            let err = StringTerminationError::new(at, self.line);
+            self.advance(self.rest.len());
+
+            Err(err.into())
+        }
+    }
+
+    /// Finishes a number whose first digit, found at `at` on `line`, was just
+    /// consumed. `from_digit` is the input starting at that digit.
+    fn number(
+        &mut self,
+        from_digit: &'de str,
+        at: usize,
+        line: usize,
+    ) -> Result<Token<'de>, GlobalError> {
+        // digits, then an optional `.` that must be followed by a digit
+        let digits = |s: &str| s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+        let mut len = digits(from_digit);
+        if let Some(fractional_part) = from_digit[len..].strip_prefix('.') {
+            let n = digits(fractional_part);
+            if n > 0 {
+                len += 1 + n;
+            }
+        }
+
+        let literal = &from_digit[..len];
+        // the first digit (one byte) was already consumed
+        self.advance(literal.len() - 1);
+
+        match literal.parse() {
+            Ok(num) => {
+                Ok(Token { origin: literal, offset: at, kind: TokenKind::Number(num), line })
+            }
+            Err(source) => Err(ParseNumberError::new(literal.to_owned(), at, line, source).into()),
+        }
+    }
 }
 
 enum Started {
@@ -35,6 +92,8 @@ enum Started {
     String,
     Number,
     Ident,
+    /// `<`, `>`, `!` and `=`: the first kind if an `=` follows, the second if
+    /// not.
     IfEqualElse(TokenKind, TokenKind),
 }
 
@@ -48,30 +107,26 @@ impl<'de> Iterator for Scanner<'de> {
         }
 
         loop {
-            let mut chars = self.rest.chars();
-
-            let ch = chars.next()?;
-            let ch_at = self.cursor;
-            let ch_str = &self.rest[..ch.len_utf8()];
             let ch_onwards = self.rest;
-
-            self.rest = chars.as_str();
-            self.cursor += ch.len_utf8();
+            let ch = ch_onwards.chars().next()?;
+            let ch_at = self.cursor;
+            let ch_str = &ch_onwards[..ch.len_utf8()];
+            self.advance(ch.len_utf8());
 
             let line = self.line;
-            let just = move |kind| Some(Ok(Token { kind, offset: ch_at, origin: ch_str, line }));
+            let emit = move |kind| Some(Ok(Token { kind, offset: ch_at, origin: ch_str, line }));
 
             let started = match ch {
-                '(' => return just(TokenKind::LeftParen),
-                ')' => return just(TokenKind::RightParen),
-                '{' => return just(TokenKind::LeftBrace),
-                '}' => return just(TokenKind::RightBrace),
-                ',' => return just(TokenKind::Comma),
-                '.' => return just(TokenKind::Dot),
-                '-' => return just(TokenKind::Minus),
-                '+' => return just(TokenKind::Plus),
-                ';' => return just(TokenKind::Semicolon),
-                '*' => return just(TokenKind::Star),
+                '(' => return emit(TokenKind::LeftParen),
+                ')' => return emit(TokenKind::RightParen),
+                '{' => return emit(TokenKind::LeftBrace),
+                '}' => return emit(TokenKind::RightBrace),
+                ',' => return emit(TokenKind::Comma),
+                '.' => return emit(TokenKind::Dot),
+                '-' => return emit(TokenKind::Minus),
+                '+' => return emit(TokenKind::Plus),
+                ';' => return emit(TokenKind::Semicolon),
+                '*' => return emit(TokenKind::Star),
 
                 '/' => Started::Slash,
                 '<' => Started::IfEqualElse(TokenKind::LessEqual, TokenKind::Less),
@@ -93,52 +148,26 @@ impl<'de> Iterator for Scanner<'de> {
             };
 
             break match started {
-                Started::String => {
-                    if let Some(end) = self.rest.find('"') {
-                        let literal = &ch_onwards[..=(end + 1)];
-                        self.cursor += end + 1;
-                        self.rest = &self.rest[end + 1..];
-                        self.line += literal.matches('\n').count();
-
-                        Some(Ok(Token {
-                            origin: literal,
-                            offset: ch_at,
-                            kind: TokenKind::String,
-                            line: self.line,
-                        }))
-                    } else {
-                        // swallow the remainder of input as being a string
-                        self.line += self.rest.matches('\n').count();
-                        let err = StringTerminationError::new(ch_at, self.line);
-
-                        self.cursor += self.rest.len();
-                        self.rest = &self.rest[self.rest.len()..];
-
-                        return Some(Err(err.into()));
-                    }
-                }
+                Started::String => Some(self.string(ch_onwards, ch_at)),
 
                 Started::Slash => {
                     if self.rest.starts_with('/') {
+                        // a comment runs up to, but not including, the newline
                         let line_end = self.rest.find('\n').unwrap_or(self.rest.len());
-                        self.cursor += line_end;
-                        self.rest = &self.rest[line_end..];
+                        self.advance(line_end);
                         continue;
                     }
 
-                    Some(Ok(Token { origin: ch_str, offset: ch_at, kind: TokenKind::Slash, line }))
+                    emit(TokenKind::Slash)
                 }
 
                 Started::Ident => {
-                    let first_non_digit = ch_onwards
-                        .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
+                    let end = ch_onwards
+                        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
                         .unwrap_or(ch_onwards.len());
 
-                    let literal = &ch_onwards[..first_non_digit];
-                    let extra_bytes = literal.len() - ch.len_utf8();
-
-                    self.cursor += extra_bytes;
-                    self.rest = &self.rest[extra_bytes..];
+                    let literal = &ch_onwards[..end];
+                    self.advance(literal.len() - ch.len_utf8());
 
                     let kind = match literal {
                         "and" => TokenKind::And,
@@ -160,54 +189,19 @@ impl<'de> Iterator for Scanner<'de> {
                         _ => TokenKind::Ident,
                     };
 
-                    return Some(Ok(Token { origin: literal, offset: ch_at, kind, line }));
+                    Some(Ok(Token { origin: literal, offset: ch_at, kind, line }))
                 }
 
-                Started::Number => {
-                    // digits, then an optional `.` that must be followed by a
-                    // digit
-                    let digits = |s: &str| s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
-                    let mut len = digits(ch_onwards);
-                    if let Some(fractional_part) = ch_onwards[len..].strip_prefix('.') {
-                        let n = digits(fractional_part);
-                        if n > 0 {
-                            len += 1 + n;
-                        }
-                    }
+                Started::Number => Some(self.number(ch_onwards, ch_at, line)),
 
-                    let literal = &ch_onwards[..len];
-
-                    let extra_bytes = literal.len() - ch.len_utf8();
-                    self.cursor += extra_bytes;
-                    self.rest = &self.rest[extra_bytes..];
-
-                    let num = match literal.parse() {
-                        Ok(num) => num,
-                        Err(source) => {
-                            let err =
-                                ParseNumberError::new(literal.to_owned(), ch_at, line, source);
-
-                            return Some(Err(err.into()));
-                        }
-                    };
-
-                    return Some(Ok(Token {
-                        origin: literal,
-                        offset: ch_at,
-                        kind: TokenKind::Number(num),
-                        line,
-                    }));
-                }
-
-                Started::IfEqualElse(r#true, r#false) => {
+                Started::IfEqualElse(with_eq, without_eq) => {
                     if self.rest.starts_with('=') {
                         let span = &ch_onwards[..=ch.len_utf8()];
-                        self.rest = &self.rest[1..];
-                        self.cursor += 1;
+                        self.advance(1);
 
-                        Some(Ok(Token { origin: span, offset: ch_at, kind: r#true, line }))
+                        Some(Ok(Token { origin: span, offset: ch_at, kind: with_eq, line }))
                     } else {
-                        Some(Ok(Token { origin: ch_str, offset: ch_at, kind: r#false, line }))
+                        emit(without_eq)
                     }
                 }
             };
