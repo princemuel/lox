@@ -1,0 +1,9 @@
+Evaluate a single expression from FILE and print the result
+
+Usage: lox evaluate <FILENAME>
+
+Arguments:
+  <FILENAME>
+
+Options:
+  -h, --help  Print help

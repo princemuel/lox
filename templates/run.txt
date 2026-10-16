@@ -1,0 +1,9 @@
+Parse and run FILE
+
+Usage: lox run <FILENAME>
+
+Arguments:
+  <FILENAME>
+
+Options:
+  -h, --help  Print help

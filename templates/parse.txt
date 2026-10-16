@@ -1,0 +1,9 @@
+Parse a single expression from FILE and print its tree
+
+Usage: lox parse <FILENAME>
+
+Arguments:
+  <FILENAME>
+
+Options:
+  -h, --help  Print help

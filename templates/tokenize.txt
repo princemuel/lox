@@ -1,0 +1,9 @@
+Print the tokens of FILE
+
+Usage: lox tokenize <FILENAME>
+
+Arguments:
+  <FILENAME>
+
+Options:
+  -h, --help  Print help

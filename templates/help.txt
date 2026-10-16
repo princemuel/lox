@@ -1,0 +1,12 @@
+Usage: lox <COMMAND>
+
+Commands:
+  tokenize  Print the tokens of FILE
+  parse     Parse a single expression from FILE and print its tree
+  evaluate  Evaluate a single expression from FILE and print the result
+  run       Parse and run FILE
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
