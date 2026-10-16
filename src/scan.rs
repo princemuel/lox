@@ -32,7 +32,7 @@ impl<'de> Scanner<'de> {
     /// Consumes the next `bytes` bytes of input.
     fn advance(&mut self, bytes: usize) {
         self.cursor += bytes;
-        self.rest = &self.rest[bytes..];
+        self.rest = split_after(self.rest, bytes).1;
     }
 
     /// Finishes a string whose opening quote, found at `at`, was just consumed.
@@ -41,7 +41,8 @@ impl<'de> Scanner<'de> {
         // `end` is the closing quote's offset, counted from just after the
         // opening one.
         if let Some(end) = self.rest.find('"') {
-            let literal = &from_quote[..=(end + 1)];
+            // the opening quote, `end` more bytes, then the closing quote
+            let literal = split_after(from_quote, end + 2).0;
             self.advance(end + 1);
             self.line += literal.matches('\n').count();
 
@@ -67,14 +68,14 @@ impl<'de> Scanner<'de> {
         // digits, then an optional `.` that must be followed by a digit
         let digits = |s: &str| s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
         let mut len = digits(from_digit);
-        if let Some(fractional_part) = from_digit[len..].strip_prefix('.') {
+        if let Some(fractional_part) = split_after(from_digit, len).1.strip_prefix('.') {
             let n = digits(fractional_part);
             if n > 0 {
                 len += 1 + n;
             }
         }
 
-        let literal = &from_digit[..len];
+        let literal = split_after(from_digit, len).0;
         // the first digit (one byte) was already consumed
         self.advance(literal.len() - 1);
 
@@ -100,7 +101,6 @@ enum Started {
 impl<'de> Iterator for Scanner<'de> {
     type Item = Result<Token<'de>, GlobalError>;
 
-    #[expect(clippy::too_many_lines)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.peeked.take() {
             return Some(next);
@@ -110,7 +110,7 @@ impl<'de> Iterator for Scanner<'de> {
             let ch_onwards = self.rest;
             let ch = ch_onwards.chars().next()?;
             let ch_at = self.cursor;
-            let ch_str = &ch_onwards[..ch.len_utf8()];
+            let ch_str = split_after(ch_onwards, ch.len_utf8()).0;
             self.advance(ch.len_utf8());
 
             let line = self.line;
@@ -166,7 +166,7 @@ impl<'de> Iterator for Scanner<'de> {
                         .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
                         .unwrap_or(ch_onwards.len());
 
-                    let literal = &ch_onwards[..end];
+                    let literal = split_after(ch_onwards, end).0;
                     self.advance(literal.len() - ch.len_utf8());
 
                     let kind = match literal {
@@ -194,14 +194,14 @@ impl<'de> Iterator for Scanner<'de> {
 
                 Started::Number => Some(self.number(ch_onwards, ch_at, line)),
 
-                Started::IfEqualElse(with_eq, without_eq) => {
+                Started::IfEqualElse(with_equal, without_equal) => {
                     if self.rest.starts_with('=') {
-                        let span = &ch_onwards[..=ch.len_utf8()];
+                        let span = split_after(ch_onwards, ch.len_utf8() + 1).0;
                         self.advance(1);
 
-                        Some(Ok(Token { origin: span, offset: ch_at, kind: with_eq, line }))
+                        Some(Ok(Token { origin: span, offset: ch_at, kind: with_equal, line }))
                     } else {
-                        emit(without_eq)
+                        emit(without_equal)
                     }
                 }
             };
@@ -210,3 +210,14 @@ impl<'de> Iterator for Scanner<'de> {
 }
 
 impl FusedIterator for Scanner<'_> {}
+
+/// Splits `input` after its first `bytes` bytes, as `(head, tail)`.
+///
+/// Every caller passes a length taken from the text itself (a `find`, a
+/// `len_utf8`, a `len`), so the split is always on a character boundary. If
+/// that ever stopped being true this would hand back `(input, "")` rather than
+/// panic the way `&input[..bytes]` does (debug builds assert instead).
+fn split_after(input: &str, bytes: usize) -> (&str, &str) {
+    debug_assert!(input.is_char_boundary(bytes), "split inside a character or past the end");
+    input.split_at_checked(bytes).unwrap_or((input, ""))
+}
