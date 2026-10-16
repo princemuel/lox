@@ -1,8 +1,6 @@
 //! The Abstract Syntax Tree produced by the parser.
 
-use alloc::borrow::Cow;
-use alloc::boxed::Box;
-use alloc::vec::Vec;
+use alloc::rc::Rc;
 use core::fmt;
 
 use crate::token::Token;
@@ -10,13 +8,13 @@ use crate::token::Token;
 pub struct Ast;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Literal<'de> {
+pub enum Literal {
     Nil,
     Bool(bool),
     Number(f64),
-    String(Cow<'de, str>),
+    String(Rc<str>),
 }
-impl fmt::Display for Literal<'_> {
+impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Nil => f.write_str("nil"),
@@ -90,7 +88,7 @@ impl fmt::Display for LogicalOp {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr<'de> {
-    Literal(Literal<'de>),
+    Literal(Literal),
     Variable(Token<'de>),
     This(Token<'de>),
     Super { keyword: Token<'de>, method: Token<'de> },
@@ -163,7 +161,7 @@ pub enum Stmt<'de> {
     Block(Vec<Self>),
     If { condition: Expr<'de>, then_branch: Box<Self>, else_branch: Option<Box<Self>> },
     While { condition: Expr<'de>, body: Box<Self> },
-    Function(Function<'de>),
+    Function(Rc<Function<'de>>),
     Return { keyword: Token<'de>, value: Option<Expr<'de>> },
     Class { name: Token<'de>, superclass: Option<Expr<'de>>, methods: Vec<Function<'de>> },
 }
