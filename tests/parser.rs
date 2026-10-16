@@ -235,41 +235,13 @@ fn parse_expression_reports_errors_too() {
     assert_eq!(err("(1 +"), ["[line 1] Error at end: Expect expression."]);
 }
 
-/// Every `.lox` file under `dir`, skipping directories that hold no
-/// ordinary programs:
-/// - `limit` (clox's bytecode limits)
-/// - `scanning` (token  soup)
-/// - `expressions` (single expressions, not programs).
-fn discover(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        panic!("cannot read {}", dir.display());
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() && path.extension().is_some_and(|ext| ext == "lox") {
-            out.push(path.clone());
-        }
-
-        let should_skip = path.file_name().is_some_and(|name| {
-            ["limit", "scanning", "expressions"]
-                .iter()
-                .any(|s| name == *s)
-        });
-
-        if !should_skip {
-            discover(&path, out);
-        }
-    }
-}
-
 /// Any program the book's suite does *not* mark as erroneous must parse with no
 /// diagnostics at all: valid programs, runtime-error programs, and the
 /// book's benchmarks.
 #[test]
 fn every_program_not_expected_to_fail_parses_cleanly() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let mut files = Vec::new();
-    discover(&root, &mut files);
+    let mut files = discover(&root);
     files.sort();
 
     let mut checked = 0u16;
@@ -299,4 +271,38 @@ fn every_program_not_expected_to_fail_parses_cleanly() {
     // Guard against the walk silently finding nothing.
     assert!(checked >= 190, "only {checked} fixture programs were checked");
     assert!(failures.is_empty(), "valid programs rejected:\n{}", failures.join("\n"));
+}
+
+/// Fixture directories that hold no ordinary programs:
+/// - `limit` (clox's bytecode limits)
+/// - `scanning` (token soup)
+/// - `expressions` (single expressions, not programs).
+const SKIPPED_DIRS: [&str; 3] = ["limit", "scanning", "expressions"];
+
+fn is_skipped_dir(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| SKIPPED_DIRS.iter().any(|skipped| name == *skipped))
+}
+
+fn is_lox_file(path: &Path) -> bool { path.extension().is_some_and(|ext| ext == "lox") }
+
+/// Every `.lox` file under `dir`, except those inside [`SKIPPED_DIRS`].
+fn discover(dir: &Path) -> Vec<PathBuf> {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|err| panic!("cannot read {}: {err}", dir.display()));
+
+    let (dirs, files): (Vec<_>, Vec<_>) = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .partition(|path| path.is_dir());
+
+    files
+        .into_iter()
+        .filter(|path| is_lox_file(path))
+        .chain(
+            dirs.into_iter()
+                .filter(|path| !is_skipped_dir(path))
+                .flat_map(|path| discover(&path)),
+        )
+        .collect()
 }
