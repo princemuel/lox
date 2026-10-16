@@ -8,15 +8,11 @@ harness = false
 name    = "fixtures"
 
 [dependencies]
-eros      = {
-  version          = "0.8",
-  default-features = false,
-}
 lexopt    = "0.3"
 thiserror = "2"
 
 [dev-dependencies]
-libtest-mimic = "0.8"
+libtest-mimic = { version = "0.8", default-features = false }
 
 [lints.clippy]
 # all      = { level = "warn", priority = -1 }
