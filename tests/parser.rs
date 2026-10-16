@@ -13,7 +13,7 @@ fn expr(src: &str) -> String {
 }
 
 fn program(src: &str) -> Vec<String> {
-    match Parser::new(src).parse_program() {
+    match Parser::new(src).parse() {
         Ok(stmts) => stmts.iter().map(ToString::to_string).collect(),
         Err(errs) => panic!("{src:?} should parse: {errs:?}"),
     }
@@ -21,7 +21,7 @@ fn program(src: &str) -> Vec<String> {
 
 /// Every error line the parser reports for `src`, exactly as printed.
 fn errors(src: &str) -> Vec<String> {
-    match Parser::new(src).parse_program() {
+    match Parser::new(src).parse() {
         Ok(stmts) => panic!("{src:?} should fail to parse, got {} statement(s)", stmts.len()),
         Err(errs) => errs.iter().map(ToString::to_string).collect(),
     }
@@ -197,7 +197,7 @@ fn caps_parameters_and_arguments_at_255() {
     };
     assert!(
         Parser::new(&format!("fun f({}) {{}}", params(255)))
-            .parse_program()
+            .parse()
             .is_ok()
     );
     // Reported, not thrown: the whole function still parses, so there is
@@ -209,11 +209,7 @@ fn caps_parameters_and_arguments_at_255() {
                                                                               255 parameters."]);
 
     let args = |n| vec!["1"; n].join(", ");
-    assert!(
-        Parser::new(&format!("f({});", args(255)))
-            .parse_program()
-            .is_ok()
-    );
+    assert!(Parser::new(&format!("f({});", args(255))).parse().is_ok());
 
     // Reported, not thrown: the call still parses to its `)`, so the stray `x`
     // after it is found too. (A thrown error would have skipped it.)
@@ -262,7 +258,7 @@ fn every_program_not_expected_to_fail_parses_cleanly() {
 
         checked += 1;
 
-        if let Err(errs) = Parser::new(&source).parse_program() {
+        if let Err(errs) = Parser::new(&source).parse() {
             let shown: Vec<_> = errs.iter().map(ToString::to_string).collect();
             failures.push(format!("{}: {}", path.display(), shown.join(" | ")));
         }

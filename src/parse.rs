@@ -17,9 +17,8 @@
 //! Block       → "{" Declaration* "}"
 //! ```
 
-use alloc::borrow::{Cow, ToOwned as _};
-use alloc::boxed::Box;
-use alloc::vec::Vec;
+use alloc::borrow::ToOwned as _;
+use alloc::rc::Rc;
 use alloc::{format, vec};
 
 use crate::ast::{BinaryOp, Expr, Function, Literal, LogicalOp, Stmt, UnaryOp};
@@ -109,7 +108,7 @@ impl<'de> Parser<'de> {
     ///
     /// Every lexical and syntax error found, in the order they were found. The
     /// parser recovers after each one, so a single call reports them all.
-    pub fn parse_program(mut self) -> Result<Vec<Stmt<'de>>, Vec<SyntaxError>> {
+    pub fn parse(mut self) -> Result<Vec<Stmt<'de>>, Vec<SyntaxError>> {
         let mut program = Vec::new();
 
         while self.peek().is_some() {
@@ -255,7 +254,8 @@ impl<'de> Parser<'de> {
         let result = if self.eat(TokenKind::Class) {
             self.class_declaration()
         } else if self.eat(TokenKind::Fun) {
-            self.function("function").map(Stmt::Function)
+            self.function("function")
+                .map(|function| Stmt::Function(Rc::new(function)))
         } else if self.eat(TokenKind::Var) {
             self.var_declaration()
         } else {
@@ -487,9 +487,11 @@ impl<'de> Parser<'de> {
         // Prefix Position: what can *start* an expression.
         let mut lhs = match token.kind {
             TokenKind::Number(n) => Expr::Literal(Literal::Number(n)),
+
             TokenKind::String => {
-                Expr::Literal(Literal::String(Cow::Borrowed(token.origin.trim_matches('"'))))
+                Expr::Literal(Literal::String(Rc::from(token.origin.trim_matches('"'))))
             }
+
             TokenKind::True => Expr::Literal(Literal::Bool(true)),
             TokenKind::False => Expr::Literal(Literal::Bool(false)),
             TokenKind::Nil => Expr::Literal(Literal::Nil),

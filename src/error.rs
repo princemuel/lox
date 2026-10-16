@@ -1,15 +1,16 @@
-use alloc::borrow::ToOwned as _;
-use alloc::format;
-use alloc::string::String;
+#![expect(clippy::error_impl_error, reason = "easier to use")]
 use core::fmt;
 use core::num::ParseFloatError;
+use std::io;
 
 use thiserror::Error as ThisError;
+
+use crate::token::Token;
 
 /// A lexical error.
 #[non_exhaustive]
 #[derive(Clone, Debug, ThisError)]
-pub enum GlobalError {
+pub enum Error {
     #[error(transparent)]
     SingleToken(#[from] SingleTokenError),
 
@@ -105,13 +106,68 @@ impl fmt::Display for SyntaxError {
 
 impl core::error::Error for SyntaxError {}
 
-impl From<GlobalError> for SyntaxError {
-    fn from(err: GlobalError) -> Self {
+impl From<Error> for SyntaxError {
+    fn from(err: Error) -> Self {
         let (line, message) = match err {
-            GlobalError::SingleToken(e) => (e.line, "Unexpected character.".to_owned()),
-            GlobalError::StringTermination(e) => (e.line, "Unterminated string.".to_owned()),
-            GlobalError::ParseNumber(e) => (e.line, format!("Invalid number '{}'.", e.literal)),
+            Error::SingleToken(e) => (e.line, "Unexpected character.".to_owned()),
+            Error::StringTermination(e) => (e.line, "Unterminated string.".to_owned()),
+            Error::ParseNumber(e) => (e.line, format!("Invalid number '{}'.", e.literal)),
         };
         Self { line, location: Location::Unspecified, message }
+    }
+}
+
+/// A mistake found while running. Printed the way jlox does: the message, then
+/// `[line N]` on its own line with exit status 70
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeError {
+    pub line: usize,
+    pub message: String,
+}
+
+impl RuntimeError {
+    #[must_use]
+    pub fn new(token: &Token<'_>, message: impl Into<String>) -> Self {
+        Self { line: token.line, message: message.into() }
+    }
+}
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}\n[line {}]", self.message, self.line)
+    }
+}
+
+impl core::error::Error for RuntimeError {}
+
+/// Anything that stops a running program.
+#[derive(Debug)]
+pub enum Failure {
+    /// The Lox program did something illegal.
+    Runtime(RuntimeError),
+    /// The interpreter could not write the program's output (closed pipe, full
+    /// disk).
+    Output(io::Error),
+}
+
+impl From<RuntimeError> for Failure {
+    fn from(err: RuntimeError) -> Self { Self::Runtime(err) }
+}
+
+impl fmt::Display for Failure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Runtime(e) => write!(f, "{e}"),
+            Self::Output(e) => write!(f, "Error: writing output failed: {e}"),
+        }
+    }
+}
+
+impl core::error::Error for Failure {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Runtime(e) => Some(e),
+            Self::Output(e) => Some(e),
+        }
     }
 }

@@ -1,14 +1,14 @@
 use alloc::borrow::ToOwned as _;
 use core::iter::FusedIterator;
 
-use crate::error::{GlobalError, ParseNumberError, SingleTokenError, StringTerminationError};
+use crate::error::{Error, ParseNumberError, SingleTokenError, StringTerminationError};
 use crate::token::{Token, TokenKind};
 
 pub struct Scanner<'de> {
     rest: &'de str,
     cursor: usize,
     line: usize,
-    peeked: Option<Result<Token<'de>, GlobalError>>,
+    peeked: Option<Result<Token<'de>, Error>>,
 }
 
 impl<'de> Scanner<'de> {
@@ -20,7 +20,7 @@ impl<'de> Scanner<'de> {
     #[must_use]
     pub const fn line(&self) -> usize { self.line }
 
-    pub fn peek(&mut self) -> Option<&Result<Token<'de>, GlobalError>> {
+    pub fn peek(&mut self) -> Option<&Result<Token<'de>, Error>> {
         if self.peeked.is_some() {
             return self.peeked.as_ref();
         }
@@ -37,7 +37,7 @@ impl<'de> Scanner<'de> {
 
     /// Finishes a string whose opening quote, found at `at`, was just consumed.
     /// `from_quote` is the input starting at that quote.
-    fn string(&mut self, from_quote: &'de str, at: usize) -> Result<Token<'de>, GlobalError> {
+    fn string(&mut self, from_quote: &'de str, at: usize) -> Result<Token<'de>, Error> {
         // `end` is the closing quote's offset, counted from just after the
         // opening one.
         if let Some(end) = self.rest.find('"') {
@@ -64,7 +64,7 @@ impl<'de> Scanner<'de> {
         from_digit: &'de str,
         at: usize,
         line: usize,
-    ) -> Result<Token<'de>, GlobalError> {
+    ) -> Result<Token<'de>, Error> {
         // digits, then an optional `.` that must be followed by a digit
         let digits = |s: &str| s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
         let mut len = digits(from_digit);
@@ -99,7 +99,7 @@ enum Started {
 }
 
 impl<'de> Iterator for Scanner<'de> {
-    type Item = Result<Token<'de>, GlobalError>;
+    type Item = Result<Token<'de>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.peeked.take() {
@@ -213,10 +213,10 @@ impl FusedIterator for Scanner<'_> {}
 
 /// Splits `input` after its first `bytes` bytes, as `(head, tail)`.
 ///
-/// Every caller passes a length taken from the text itself (a `find`, a
-/// `len_utf8`, a `len`), so the split is always on a character boundary. If
-/// that ever stopped being true this would hand back `(input, "")` rather than
-/// panic the way `&input[..bytes]` does (debug builds assert instead).
+/// ? NOTE: Every caller passes a length taken from the text itself (a `find`, a
+/// ? `len_utf8`, a `len`), so the split is always on a character boundary.
+/// ? If that stops being true, this fn will hand back `(input, "")` rather than
+/// ? panic the way `&input[..bytes]` does (debug builds assert instead).
 fn split_after(input: &str, bytes: usize) -> (&str, &str) {
     debug_assert!(input.is_char_boundary(bytes), "split inside a character or past the end");
     input.split_at_checked(bytes).unwrap_or((input, ""))
